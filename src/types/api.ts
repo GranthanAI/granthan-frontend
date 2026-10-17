@@ -86,6 +86,8 @@ export interface StreamEvent {
   status?: 'completed' | 'failed'
   citations?: Citation[]
   full_content?: string
+  /** Replay-log cursor (Redis Stream id). Absent if the server's event log was unavailable. */
+  event_id?: string
 }
 
 export type FileStatus =

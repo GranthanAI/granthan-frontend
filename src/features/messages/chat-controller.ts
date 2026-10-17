@@ -1,5 +1,5 @@
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
-import { errorMessage } from '@/lib/errors'
+import { errorMessage, toApiError } from '@/lib/errors'
 import { qk } from '@/lib/query-keys'
 import { openConversationStream, type OpenedStream } from '@/lib/streaming'
 import { uuid } from '@/lib/utils'
@@ -11,67 +11,86 @@ import type { ApiMessage, Page, StreamEvent } from '@/types/api'
  * Orchestrates one chat turn outside React so streams survive navigation between
  * conversations. Flow (matches the gateway/conversation-service contract):
  *
- *   1. open GET /stream/{cid} and wait for the subscription ack (no replay on the server)
- *   2. POST the message (202) -> `response_message_id` identifies the assistant reply
- *   3. render `chat.response.chunk` events ordered by `sequence_number`
+ *   1. POST the message (202) -> `response_message_id` identifies the assistant reply
+ *   2. open GET /stream/{cid}?message_id=<assistant id>&since=<cursor>. The server replays the
+ *      retained events of that turn after the cursor and then follows live, so events published
+ *      before the connection existed are NOT lost (no subscription race).
+ *   3. render `chat.response.chunk` events ordered by `sequence_number`, deduplicated
  *   4. the final event (`is_final`) carries `full_content` + `citations` and replaces the buffer
- *   5. if the stream ends without a final event, poll history until the row leaves `pending`
- *   6. refetch history and drop the local overlay once persisted data is available
+ *   5. if the stream drops it reconnects from the last `event_id` (bounded backoff)
+ *   6. independently, persisted history is checked every few seconds: if the assistant row has
+ *      left `pending`, the turn finishes from persisted state (covers a lost stream, a
+ *      replay log that is unavailable, or an older backend without replay)
+ *   7. refetch history and drop the local overlay only once persisted data is available
  */
 
-const POLL_INTERVAL_MS = 2000
-const POLL_MAX_MS = 150_000 // conversation-service fails un-answered turns after 120 s
+/**
+ * Timing knobs (mutable only so tests can shrink them). `deadlineMs`: conversation-service fails
+ * un-answered turns after 120 s, so wait a little longer than that before giving up.
+ */
+export const TIMING = {
+  deadlineMs: 150_000,
+  reconcileMs: 5_000,
+  reconnectBaseMs: 300,
+  reconnectMaxMs: 3_000,
+}
+
+/** Text the backend uses when its own watchdog fails a turn (a real reply may still arrive later). */
+export const TIMEOUT_TEXT = 'Generation timed out'
 
 const active = new Map<string, { abort: AbortController; stream?: OpenedStream }>()
 
 export const isRunning = (cid: string) => active.has(cid)
 
-interface TurnResult {
+interface Outcome {
   text: string
   failed: boolean
   error?: string
+  final?: StreamEvent | null
 }
 
-class TurnAssembler {
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve) => {
+    const t = setTimeout(resolve, ms)
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(t)
+        resolve()
+      },
+      { once: true },
+    )
+  })
+
+export class TurnAssembler {
   private chunks = new Map<number, string>()
   private arrival = 0
-  private expectedId: string | null = null
-  private backlog: StreamEvent[] = []
   private finalEvent: StreamEvent | null = null
+  /** Highest `event_id` seen: the resume cursor for reconnects. */
+  lastEventId: string | null = null
   private resolveDone!: () => void
   readonly done = new Promise<void>((r) => (this.resolveDone = r))
 
   constructor(
     private cid: string,
+    private messageId: string,
     private onText: (text: string) => void,
-    private onFinal: (e: StreamEvent) => void,
   ) {}
 
-  /** Stream events may arrive before the POST acknowledgement; buffer until the id is known. */
   push(e: StreamEvent) {
-    if (!this.expectedId) {
-      this.backlog.push(e)
-      return
-    }
-    this.apply(e)
-  }
-
-  setExpected(id: string) {
-    this.expectedId = id
-    const b = this.backlog
-    this.backlog = []
-    b.forEach((e) => this.apply(e))
-  }
-
-  private apply(e: StreamEvent) {
-    if (e.message_id !== this.expectedId || e.conversation_id !== this.cid) return
-    if (this.finalEvent) return // duplicates after completion
+    if (e.message_id !== this.messageId || e.conversation_id !== this.cid) return
+    if (e.event_id && (!this.lastEventId || cmpEventId(e.event_id, this.lastEventId) > 0))
+      this.lastEventId = e.event_id
     if (e.is_final) {
+      // A completed reply always wins over an earlier failure (timeout watchdog) and vice versa
+      // is ignored: once completed, nothing replaces it.
+      if (this.finalEvent?.status === 'completed') return
+      if (this.finalEvent && e.status !== 'completed') return
       this.finalEvent = e
-      this.onFinal(e)
       this.resolveDone()
       return
     }
+    if (this.finalEvent) return
     // Duplicate sequence numbers are ignored; missing numbers are tolerated.
     const seq = e.sequence_number ?? 1_000_000 + this.arrival++
     if (this.chunks.has(seq)) return
@@ -91,44 +110,127 @@ class TurnAssembler {
   }
 }
 
-async function pollUntilSettled(
+/** Redis Stream ids are "<ms>-<seq>". */
+export function cmpEventId(a: string, b: string): number {
+  const [am = 0, as = 0] = a.split('-').map(Number)
+  const [bm = 0, bs = 0] = b.split('-').map(Number)
+  return am !== bm ? am - bm : as - bs
+}
+
+async function fetchRow(cid: string, messageId: string, signal: AbortSignal) {
+  const page = await messageService.history(cid, { limit: 20 }, signal)
+  return page.items.find((x) => x.message_id === messageId) ?? null
+}
+
+/**
+ * Resolves with the turn outcome from whichever source settles first: the (resumable) stream's
+ * terminal event, the periodic persisted-history check, or the overall deadline.
+ */
+function waitForOutcome(
   cid: string,
   messageId: string,
-  signal: AbortSignal,
-): Promise<ApiMessage | null> {
-  const started = Date.now()
-  while (!signal.aborted && Date.now() - started < POLL_MAX_MS) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
-    try {
-      const page = await messageService.history(cid, { limit: 20 }, signal)
-      const m = page.items.find((x) => x.message_id === messageId)
-      if (m && m.status !== 'pending') return m
-    } catch {
-      // transient: keep polling until the deadline
+  assembler: TurnAssembler,
+  entry: { abort: AbortController; stream?: OpenedStream },
+): Promise<Outcome> {
+  const { signal } = entry.abort
+  return new Promise<Outcome>((resolve) => {
+    let settled = false
+    const finish = (o: Outcome) => {
+      if (settled) return
+      settled = true
+      clearInterval(reconciler)
+      clearTimeout(deadline)
+      entry.stream?.close()
+      resolve(o)
     }
-  }
-  return null
+
+    const fromFinal = (): Outcome => {
+      const f = assembler.final!
+      const failed = f.status === 'failed'
+      const text = failed ? f.content || 'Generation failed.' : f.full_content || assembler.text()
+      return { text, failed, error: failed ? text : undefined, final: f }
+    }
+    void assembler.done.then(() => finish(fromFinal()))
+
+    // Persisted-state reconciler: independent of the stream.
+    let checking = false
+    const reconciler = setInterval(() => {
+      if (checking || settled) return
+      checking = true
+      fetchRow(cid, messageId, signal)
+        .then((row) => {
+          if (!row || row.status === 'pending' || settled) return
+          const failed = row.status === 'failed'
+          finish({ text: row.content, failed, error: failed ? row.content : undefined })
+        })
+        .catch(() => {})
+        .finally(() => {
+          checking = false
+        })
+    }, TIMING.reconcileMs)
+
+    const deadline = setTimeout(
+      () =>
+        finish({
+          text: assembler.text(),
+          failed: true,
+          error: 'The response did not complete in time. Please try again.',
+        }),
+      TIMING.deadlineMs,
+    )
+
+    signal.addEventListener('abort', () => finish({ text: '', failed: true, error: 'Cancelled.' }), {
+      once: true,
+    })
+
+    // Stream loop: connect (replaying from the cursor), consume, reconnect with backoff.
+    void (async () => {
+      let attempt = 0
+      while (!settled && !signal.aborted) {
+        try {
+          const stream = await openConversationStream(
+            cid,
+            {
+              onEvent: (e) => assembler.push(e),
+              onServerError: () => {},
+            },
+            signal,
+            { messageId, since: assembler.lastEventId ?? '0' },
+          )
+          entry.stream = stream
+          attempt = 0
+          await stream.closed
+        } catch (e) {
+          const err = toApiError(e)
+          if (err.kind === 'auth') {
+            finish({ text: assembler.text(), failed: true, error: 'Your session expired. Please sign in again.' })
+            return
+          }
+          if (err.kind === 'not_found' || err.kind === 'forbidden') {
+            finish({ text: assembler.text(), failed: true, error: err.message })
+            return
+          }
+        }
+        if (settled || assembler.final) return
+        await sleep(Math.min(TIMING.reconnectBaseMs * 2 ** attempt++, TIMING.reconnectMaxMs), signal)
+      }
+    })()
+  })
 }
 
 async function settle(
   qc: QueryClient,
   cid: string,
   messageId: string | null,
-  result: TurnResult,
-  citationsFor?: StreamEvent | null,
+  result: Outcome,
 ) {
   const store = useChatStore.getState()
-  if (messageId && citationsFor?.citations?.length) store.setCitations(messageId, citationsFor.citations)
+  if (messageId && result.final?.citations?.length) store.setCitations(messageId, result.final.citations)
   store.patch(cid, (r) => ({
     ...r,
     pendingUser: r.pendingUser ? { ...r.pendingUser, status: 'sent' } : null,
     assistant: r.assistant
-      ? {
-          ...r.assistant,
-          text: result.text,
-          phase: result.failed ? 'failed' : 'completed',
-          error: result.error,
-        }
+      ? { ...r.assistant, text: result.text, phase: result.failed ? 'failed' : 'completed', error: result.error }
       : r.assistant,
   }))
   // Reconcile with persisted history, then drop the overlay.
@@ -162,29 +264,11 @@ async function runTurn({ qc, cid, trigger, replaces, onTriggerError }: RunArgs) 
     assistant: { messageId: null, text: '', phase: 'connecting', replaces },
   }))
 
-  const assembler = new TurnAssembler(
-    cid,
-    (text) =>
-      patch(cid, (r) =>
-        r.assistant ? { ...r, assistant: { ...r.assistant, text, phase: 'streaming' } } : r,
-      ),
-    () => {},
-  )
-
   try {
-    try {
-      entry.stream = await openConversationStream(cid, { onEvent: (e) => assembler.push(e) }, abort.signal)
-    } catch (e) {
-      onTriggerError(errorMessage(e))
-      patch(cid, (r) => ({ ...r, assistant: null }))
-      return
-    }
-
     let ack: ApiMessage
     try {
       ack = await trigger(abort.signal)
     } catch (e) {
-      entry.stream.close()
       onTriggerError(errorMessage(e))
       patch(cid, (r) => ({ ...r, assistant: null }))
       return
@@ -198,36 +282,16 @@ async function runTurn({ qc, cid, trigger, replaces, onTriggerError }: RunArgs) 
         : null,
       assistant: r.assistant ? { ...r.assistant, messageId: assistantId, phase: 'waiting' } : null,
     }))
-    assembler.setExpected(assistantId)
 
-    // Wait for the final event, a closed stream, or cancellation.
-    await Promise.race([assembler.done, entry.stream.closed])
-    entry.stream.close()
+    const assembler = new TurnAssembler(cid, assistantId, (text) =>
+      patch(cid, (r) =>
+        r.assistant ? { ...r, assistant: { ...r.assistant, text, phase: 'streaming' } } : r,
+      ),
+    )
 
-    const final = assembler.final
-    if (final) {
-      const failed = final.status === 'failed'
-      const text = failed
-        ? final.content || 'Generation failed.'
-        : final.full_content || assembler.text()
-      await settle(qc, cid, assistantId, { text, failed, error: failed ? text : undefined }, final)
-      return
-    }
-
+    const outcome = await waitForOutcome(cid, assistantId, assembler, entry)
     if (abort.signal.aborted) return
-
-    // Stream ended without a final event (dropped connection): fall back to persisted state.
-    const m = await pollUntilSettled(cid, assistantId, abort.signal)
-    if (m) {
-      const failed = m.status === 'failed'
-      await settle(qc, cid, assistantId, { text: m.content, failed, error: failed ? m.content : undefined })
-    } else if (!abort.signal.aborted) {
-      await settle(qc, cid, assistantId, {
-        text: assembler.text(),
-        failed: true,
-        error: 'The response did not complete. Please try again.',
-      })
-    }
+    await settle(qc, cid, assistantId, outcome)
   } finally {
     if (active.get(cid) === entry) active.delete(cid)
   }
@@ -296,8 +360,8 @@ export function regenerate(qc: QueryClient, cid: string, assistantMessageId: str
 
 /**
  * Attaches to an assistant reply that is already `pending` on the server (page reload or
- * navigating back mid-generation). Earlier chunks cannot be replayed, so this shows a
- * waiting state and uses the final event (full_content) or history polling.
+ * navigating back mid-generation). The resumable stream replays the retained chunks, so the
+ * partial text is restored; persisted history remains the fallback.
  */
 export function watchPending(qc: QueryClient, cid: string, messageId: string): boolean {
   if (active.has(cid)) return false

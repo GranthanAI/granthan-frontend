@@ -64,21 +64,34 @@ export interface OpenedStream {
  * travels in the Authorization header instead of the URL query string.
  *
  * The returned promise resolves once the server has acknowledged the subscription (first
- * bytes, the ": ok" comment), which is the point after which published chunks will not be
- * missed. The backend uses Redis pub/sub with no replay, so callers must wait for this
- * BEFORE sending the message that triggers generation.
+ * bytes, the ": ok" comment). Live pub/sub has no replay, so reliability comes from the
+ * resumable mode: with `messageId` + `since` the server replays the retained events of that
+ * turn after the cursor and then follows live, so a late or re-established connection does
+ * not lose events. Each event carries an `event_id` to use as the next `since`.
  */
+export interface ResumeOptions {
+  /** Assistant response id: replay + follow only this turn, and end after its terminal event. */
+  messageId?: string
+  /** Resume after this event_id ("0" = everything the server still retains). */
+  since?: string
+}
+
 export async function openConversationStream(
   conversationId: string,
   handlers: StreamHandlers,
   external?: AbortSignal,
+  resume: ResumeOptions = {},
 ): Promise<OpenedStream> {
   const ctrl = new AbortController()
   if (external) {
     if (external.aborted) ctrl.abort()
     else external.addEventListener('abort', () => ctrl.abort(), { once: true })
   }
-  const url = `${API_BASE_URL}/stream/${encodeURIComponent(conversationId)}`
+  const qs = new URLSearchParams()
+  if (resume.messageId) qs.set('message_id', resume.messageId)
+  if (resume.since) qs.set('since', resume.since)
+  const query = qs.toString()
+  const url = `${API_BASE_URL}/stream/${encodeURIComponent(conversationId)}${query ? `?${query}` : ''}`
   const connect = (token: string | null) =>
     fetch(url, {
       headers: {

@@ -112,6 +112,8 @@ describe('validation', () => {
   it('validates files against File Service policy', () => {
     expect(validateFile({ name: 'a.pdf', size: 10, type: 'application/pdf' }).ok).toBe(true)
     expect(validateFile({ name: 'a.txt', size: 10, type: '' }).ok).toBe(true)
+    expect(validateFile({ name: 'notes.md', size: 10, type: '' }).ok).toBe(true)
+    expect(validateFile({ name: 'r.docx', size: 10, type: '' }).ok).toBe(true)
     expect(validateFile({ name: 'a.exe', size: 10, type: 'application/x-msdownload' }).ok).toBe(false)
     expect(validateFile({ name: 'a.pdf', size: 0, type: 'application/pdf' }).ok).toBe(false)
     expect(validateFile({ name: 'big.pdf', size: 200 * 1024 * 1024, type: 'application/pdf' }).ok).toBe(false)
