@@ -93,7 +93,7 @@ export function MessageList({
 
   return (
     <div className="relative min-h-0 flex-1">
-      <div ref={scroller} onScroll={onScroll} className="h-full overflow-y-auto overscroll-contain" tabIndex={-1}>
+      <div ref={scroller} data-chat-messages onScroll={onScroll} className="h-full overflow-y-auto overscroll-contain" tabIndex={-1}>
         <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6">
           <div ref={topSentinel} className="flex h-6 items-center justify-center">
             {loadingOlder ? (
