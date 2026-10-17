@@ -79,6 +79,19 @@ Key decisions:
 - **Safety**: Markdown is rendered without raw HTML, links open with `rel="noopener noreferrer nofollow"`, server
   5xx bodies are never shown to users, no secrets are stored or committed.
 
+## Tools and documents in chat
+
+- **Mode and tool selector** (composer, wrench button): *Mode* is Auto (default) or one of the backend's modes (Tutor, Code, Web search, Smart, Deep research; only those enabled), sent as `mode`. The tool list comes from `GET /tools`, so it always matches the backend
+  registry (enabled tools only; loading, empty and error states; limited by the backend's `max_selected`). Chosen
+  tools are sent as `selected_tools` and survive retry. A tool that disappears from the backend is dropped with a notice.
+- **Documents**: a file is only attachable once the backend reports it `READY` (indexed and searchable). A file that
+  fails shows the backend's reason (for example a scanned PDF with no text). Documents attached earlier in the
+  conversation are shown as "In context" chips on later questions, can be switched off, and are only sent while still
+  `READY`. The right panel's **Files** tab lists every document attached to the conversation, including ones
+  uploaded from the new-chat screen (which File Service cannot link to a conversation).
+- If an attached document cannot be searched (no access, still indexing, indexing failed, service down) the reply is
+  a clear error instead of an answer that pretends to have read it.
+
 ## Not available (by design, not simulated)
 
 Stop generation, edit & resubmit, message feedback, memory viewing/management, message-content search, session/device

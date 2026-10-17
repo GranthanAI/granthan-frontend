@@ -139,7 +139,7 @@ describe('buildDisplay reconciliation', () => {
     const d = buildDisplay(
       [m('1', 'user', 'hi'), m('2', 'assistant', '', 'pending')],
       {
-        pendingUser: { tempId: 't', content: 'hi', fileIds: [], idempotencyKey: 'k', messageId: '1', status: 'sent', createdAt: 0 },
+        pendingUser: { tempId: 't', content: 'hi', fileIds: [], toolIds: [], mode: null, idempotencyKey: 'k', messageId: '1', status: 'sent', createdAt: 0 },
         assistant: { messageId: '2', text: 'Hel', phase: 'streaming' },
       },
       {},
@@ -160,7 +160,7 @@ describe('buildDisplay reconciliation', () => {
   it('surfaces failed assistant rows and failed sends', () => {
     const d = buildDisplay(
       [m('2', 'assistant', 'Upstream AI provider error occurred.', 'failed')],
-      { pendingUser: { tempId: 't', content: 'x', fileIds: [], idempotencyKey: 'k', messageId: null, status: 'failed', error: 'offline', createdAt: 0 }, assistant: null },
+      { pendingUser: { tempId: 't', content: 'x', fileIds: [], toolIds: [], mode: null, idempotencyKey: 'k', messageId: null, status: 'failed', error: 'offline', createdAt: 0 }, assistant: null },
       {},
     )
     expect(d[0]).toMatchObject({ status: 'failed' })

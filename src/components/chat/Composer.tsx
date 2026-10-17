@@ -1,9 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertCircle, ArrowUp, CheckCircle2, FileText, Paperclip, RefreshCw, X } from 'lucide-react'
+import { AlertCircle, ArrowUp, CheckCircle2, FileText, Paperclip, RefreshCw, Wrench, X } from 'lucide-react'
 import { Button, Spinner } from '@/components/ui/primitives'
 import { FILE_POLICY } from '@/lib/config'
 import { cn, formatBytes } from '@/lib/utils'
 import { useAttachments, type Attachment } from '@/features/uploads/useAttachments'
+import { useDocumentContext } from '@/features/uploads/useDocumentContext'
+import { useToolSelection } from '@/features/tools/useTools'
+import { ToolPicker } from './ToolPicker'
 import { useDraftStore } from '@/stores/draft.store'
 
 export const MAX_MESSAGE_CHARS = 8000
@@ -16,14 +19,20 @@ interface Props {
   placeholder?: string
   autoFocus?: boolean
   /** Return true if the message was accepted (the composer then clears itself). */
-  onSend: (text: string, fileIds: string[]) => boolean | Promise<boolean>
+  /** Documents attached earlier in this conversation (ids), offered as context for follow-ups. */
+  contextDocumentIds?: string[]
+  onSend: (text: string, fileIds: string[], toolIds: string[], mode: string | null) => boolean | Promise<boolean>
 }
 
-export function Composer({ conversationId, draftKey, busy, placeholder, autoFocus, onSend }: Props) {
+const NO_IDS: string[] = []
+
+export function Composer({ conversationId, draftKey, busy, placeholder, autoFocus, contextDocumentIds = NO_IDS, onSend }: Props) {
   const draft = useDraftStore((s) => s.drafts[draftKey] ?? '')
   const setDraft = useDraftStore((s) => s.set)
   const clearDraft = useDraftStore((s) => s.clear)
   const att = useAttachments(conversationId)
+  const tools = useToolSelection(draftKey)
+  const docs = useDocumentContext(contextDocumentIds)
   const ref = useRef<HTMLTextAreaElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -54,10 +63,13 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
     if (!canSend) return
     setSubmitting(true)
     try {
-      const ok = await onSend(text, att.readyIds)
+      // New attachments plus still-usable documents from earlier in the conversation (no duplicates).
+      const fileIds = [...new Set([...docs.includedIds, ...att.readyIds])]
+      const ok = await onSend(text, fileIds, tools.selected, tools.mode)
       if (ok) {
         clearDraft(draftKey)
         att.clear()
+        tools.clear()
       }
     } finally {
       setSubmitting(false)
@@ -114,6 +126,52 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
             ))}
           </ul>
         )}
+        {(tools.selected.length > 0 || !!tools.mode || docs.documents.length > 0) && (
+          <ul className="flex flex-wrap gap-2 px-3 pt-3" aria-label="Message context">
+            {tools.mode && (
+              <li className="flex items-center gap-1.5 rounded-xl border border-accent/40 bg-accent-soft px-2.5 py-1 text-xs">
+                <span className="text-ink-3">Mode</span>
+                <span className="font-medium">{tools.modeNameOf(tools.mode)}</span>
+                <button onClick={() => tools.setMode(null)} aria-label={`Clear mode ${tools.modeNameOf(tools.mode)}`} className="rounded p-0.5 text-ink-3 hover:text-ink">
+                  <X className="size-3.5" />
+                </button>
+              </li>
+            )}
+            {tools.selected.map((id) => (
+              <li key={`tool-${id}`} className="flex items-center gap-1.5 rounded-xl border border-accent/40 bg-accent-soft px-2.5 py-1 text-xs">
+                <Wrench className="size-3.5 text-accent" aria-hidden />
+                <span className="font-medium">{tools.nameOf(id)}</span>
+                <button onClick={() => tools.remove(id)} aria-label={`Remove tool ${tools.nameOf(id)}`} className="rounded p-0.5 text-ink-3 hover:text-ink">
+                  <X className="size-3.5" />
+                </button>
+              </li>
+            ))}
+            {docs.documents.map((d) => (
+              <li
+                key={`doc-${d.id}`}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs',
+                  d.included ? 'border-line bg-surface' : 'border-dashed border-line text-ink-3',
+                )}
+              >
+                <FileText className="size-3.5 shrink-0 text-ink-3" aria-hidden />
+                <span className="max-w-40 truncate font-medium" title={d.name}>{d.name}</span>
+                {d.usable ? (
+                  <button
+                    onClick={() => docs.toggle(d.id)}
+                    aria-pressed={d.included}
+                    aria-label={d.included ? `Stop using ${d.name} as context` : `Use ${d.name} as context`}
+                    className="rounded px-1 text-ink-3 hover:text-ink"
+                  >
+                    {d.included ? 'In context' : 'Off'}
+                  </button>
+                ) : (
+                  <span className="text-warn">{d.reason}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
         <label htmlFor="composer-input" className="sr-only">
           Message GranthanAI
         </label>
@@ -145,6 +203,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
             <Button variant="ghost" size="icon" onClick={() => fileInput.current?.click()} aria-label="Attach files" title={`Attach ${FILE_POLICY.label} files`}>
               <Paperclip className="size-4" />
             </Button>
+            <ToolPicker selection={tools} disabled={busy} />
             {draft.length > MAX_MESSAGE_CHARS * 0.8 && (
               <span className={cn('text-xs', tooLong ? 'text-danger' : 'text-ink-3')} role={tooLong ? 'alert' : undefined}>
                 {draft.length}/{MAX_MESSAGE_CHARS}
