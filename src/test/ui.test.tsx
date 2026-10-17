@@ -120,3 +120,38 @@ describe('conversation tree UI', () => {
     expect(router.state.location.pathname).toBe('/c/root')
   })
 })
+
+describe('signup with email verification toggled server-side', () => {
+  const user = { id: 'u', email: 'alex@example.com', full_name: 'Alex Doe', avatar_url: null, is_email_verified: false, created_at: '', updated_at: '', last_login: null }
+  beforeEach(() => useAuthStore.setState({ status: 'anonymous', accessToken: null, user: null }))
+  afterEach(() => vi.restoreAllMocks())
+
+  async function fillAndSubmit() {
+    await userEvent.type(await screen.findByLabelText('Full name'), 'Alex Doe')
+    await userEvent.type(screen.getByLabelText('Email'), 'alex@example.com')
+    await userEvent.type(screen.getByLabelText('Password'), 'Str0ng-Passw0rd!x')
+    await userEvent.type(screen.getByLabelText('Confirm password'), 'Str0ng-Passw0rd!x')
+    await userEvent.click(screen.getByRole('button', { name: /create account/i }))
+  }
+
+  it('signs straight in when the new account is already ACTIVE', async () => {
+    vi.spyOn(authService, 'register').mockResolvedValue({ ...user, status: 'ACTIVE' })
+    const login = vi.spyOn(authService, 'login').mockImplementation(async () => {
+      useAuthStore.setState({ status: 'authenticated', accessToken: 't', user: null })
+      return { ...user, status: 'ACTIVE' }
+    })
+    const router = renderApp('/signup')
+    await fillAndSubmit()
+    await waitFor(() => expect(login).toHaveBeenCalledWith({ email: 'alex@example.com', password: 'Str0ng-Passw0rd!x' }))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'))
+  })
+
+  it('goes to the code screen when the account is PENDING', async () => {
+    vi.spyOn(authService, 'register').mockResolvedValue({ ...user, status: 'PENDING' })
+    const login = vi.spyOn(authService, 'login')
+    const router = renderApp('/signup')
+    await fillAndSubmit()
+    await waitFor(() => expect(router.state.location.pathname).toBe('/verify-email'))
+    expect(login).not.toHaveBeenCalled()
+  })
+})

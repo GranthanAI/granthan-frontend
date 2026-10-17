@@ -126,7 +126,17 @@ export function SignupPage() {
   const onSubmit = form.handleSubmit(async (v) => {
     setFormError('')
     try {
-      await authService.register({ email: v.email, password: v.password, full_name: v.full_name })
+      const user = await authService.register({ email: v.email, password: v.password, full_name: v.full_name })
+      if (user.status === 'ACTIVE') {
+        // Email verification is switched off on the server: the account is usable straight away.
+        try {
+          await authService.login({ email: v.email, password: v.password })
+          navigate('/', { replace: true })
+        } catch {
+          navigate('/login', { replace: true, state: { notice: 'Account created. Please sign in.' } })
+        }
+        return
+      }
       navigate(`/verify-email?email=${encodeURIComponent(v.email)}`, { replace: true })
     } catch (e) {
       const err = toApiError(e)
