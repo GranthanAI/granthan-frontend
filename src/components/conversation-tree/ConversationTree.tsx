@@ -1,10 +1,11 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ChevronRight, CornerDownRight, GitBranch, MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
+import { ChevronRight, CornerDownRight, GitBranch, MoreHorizontal, Network, Pencil, Trash2 } from 'lucide-react'
 import { cn, relativeTime } from '@/lib/utils'
 import { buildTree, descendantsOf, flatten, pathTo, type TreeNode } from '@/features/conversations/tree'
 import { Menu } from '@/components/ui/overlays'
 import { Skeleton } from '@/components/ui/primitives'
+import { useWindowsStore } from '@/stores/windows.store'
 import type { Conversation } from '@/types/api'
 
 interface Props {
@@ -114,6 +115,7 @@ const TreeRow = memo(function TreeRow({
 }: RowProps) {
   const c = node.conversation
   const navigate = useNavigate()
+  const openWindow = useWindowsStore((s) => s.open)
   return (
     <li
       role="treeitem"
@@ -181,6 +183,7 @@ const TreeRow = memo(function TreeRow({
           )}
           items={[
             { label: 'Open', icon: <CornerDownRight className="size-4" />, onSelect: () => { navigate(`/c/${c.conversation_id}`); onNavigate?.() } },
+            { label: 'Chat hierarchy', icon: <Network className="size-4" />, onSelect: () => openWindow('hierarchy', c.conversation_id, { follow: true }), hint: 'Branch graph in a floating window' },
             { label: 'New branch', icon: <GitBranch className="size-4" />, onSelect: () => onBranch(c), hint: 'Start a linked conversation' },
             { label: 'Rename', icon: <Pencil className="size-4" />, onSelect: () => onRename(c) },
             'separator',

@@ -108,3 +108,69 @@ export function flatten(roots: TreeNode[], expanded: Set<string>): FlatRow[] {
 export function descendantsOf(node: TreeNode): number {
   return node.children.reduce((n, c) => n + 1 + descendantsOf(c), 0)
 }
+
+export interface GraphNode {
+  id: string
+  title: string
+  depth: number
+  x: number
+  y: number
+  parentId: string | null
+}
+
+export interface GraphLayout {
+  nodes: GraphNode[]
+  edges: { from: GraphNode; to: GraphNode }[]
+  width: number
+  height: number
+}
+
+export const GRAPH = { indent: 30, rowH: 32, padX: 16, padY: 18, labelW: 170 } as const
+
+/**
+ * Lays one conversation family (a root and every descendant) out as an indented tree that grows in
+ * both directions: every conversation gets its own row (so the tree grows downward, in creation
+ * order) and every level of branching indents one step to the right.
+ */
+export function layoutFamily(root: TreeNode): GraphLayout {
+  const nodes: GraphNode[] = []
+  const edges: GraphLayout['edges'] = []
+
+  const place = (n: TreeNode, parent: GraphNode | null) => {
+    const depth = n.depth - root.depth
+    const node: GraphNode = {
+      id: n.conversation.conversation_id,
+      title: n.conversation.title,
+      depth,
+      x: GRAPH.padX + depth * GRAPH.indent,
+      y: GRAPH.padY + nodes.length * GRAPH.rowH,
+      parentId: parent?.id ?? null,
+    }
+    nodes.push(node)
+    if (parent) edges.push({ from: parent, to: node })
+    n.children.forEach((c) => place(c, node))
+  }
+  place(root, null)
+
+  const maxDepth = Math.max(...nodes.map((n) => n.depth))
+  return {
+    nodes,
+    edges,
+    width: GRAPH.padX * 2 + maxDepth * GRAPH.indent + GRAPH.labelW,
+    height: GRAPH.padY * 2 + (nodes.length - 1) * GRAPH.rowH,
+  }
+}
+
+/** Curved connector: down the parent's column, then a rounded turn right into the child. */
+export function edgePath(from: GraphNode, to: GraphNode, dot = 6): string {
+  const r = Math.min(12, to.y - from.y - dot, to.x - from.x - dot)
+  const y0 = from.y + dot
+  return `M${from.x} ${y0} L${from.x} ${to.y - r} Q${from.x} ${to.y} ${from.x + r} ${to.y} L${to.x - dot - 3} ${to.y}`
+}
+
+/** The whole family (from the topmost loaded ancestor down) that contains `id`. */
+export function familyOf(conversations: Conversation[], id: string): TreeNode | null {
+  const rootId = pathTo(conversations, id)[0]
+  if (!rootId) return null
+  return buildTree(conversations).find((r) => r.conversation.conversation_id === rootId) ?? null
+}
