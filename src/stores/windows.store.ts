@@ -23,7 +23,7 @@ export const MIN_H = 180
 export const MAX_WINDOWS = 10
 export const PCT_MIN = 50
 export const PCT_MAX = 200
-export const PCT_STEP = 25
+export const PCT_STEP = 10
 const HEADER_H = 36
 
 export const winKey = (kind: WindowKind, conversationId: string) => `${kind}:${conversationId}`

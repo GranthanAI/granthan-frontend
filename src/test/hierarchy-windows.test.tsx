@@ -194,8 +194,8 @@ describe('following the main conversation and scaling', () => {
   it('size stepper goes from 100% down to 50% and up to 200% in steps', () => {
     st().open('chat', 'a')
     const { w } = st().windows[0]!
-    st().setPct('chat:a', 75)
-    expect(st().windows[0]).toMatchObject({ pct: 75 })
+    st().setPct('chat:a', 90)
+    expect(st().windows[0]).toMatchObject({ pct: 90 })
     expect(st().windows[0]!.w).toBeLessThan(w)
     st().setPct('chat:a', 100)
     expect(st().windows[0]!.w).toBe(w)
@@ -217,6 +217,6 @@ describe('following the main conversation and scaling', () => {
     render(<FloatingWindow win={st().windows[0]!} title="W">x</FloatingWindow>)
     expect(screen.getByRole('button', { name: /Window size 100%/ })).toHaveTextContent('100%')
     fireEvent.click(screen.getByRole('button', { name: 'Increase window size' }))
-    expect(st().windows[0]!.pct).toBe(125)
+    expect(st().windows[0]!.pct).toBe(110)
   })
 })
