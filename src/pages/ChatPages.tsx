@@ -16,6 +16,7 @@ import {
 } from '@/features/messages/chat-controller'
 import { buildDisplay } from '@/features/messages/display'
 import { useMessages } from '@/features/messages/hooks'
+import { documentIdsFromHistory } from '@/features/uploads/useDocumentContext'
 import { ApiError, errorMessage } from '@/lib/errors'
 import { truncate } from '@/lib/utils'
 import { EMPTY_RUN, isBusy, useChatStore } from '@/stores/chat.store'
@@ -33,11 +34,11 @@ export function NewChatPage() {
   const qc = useQueryClient()
   const create = useCreateConversation()
 
-  const onSend = async (text: string, fileIds: string[]) => {
+  const onSend = async (text: string, fileIds: string[], toolIds: string[], mode: string | null) => {
     if (create.isPending) return false
     try {
       const c = await create.mutateAsync({ title: truncate(text, 60) })
-      sendMessage(qc, c.conversation_id, text, fileIds)
+      sendMessage(qc, c.conversation_id, text, fileIds, toolIds, { mode })
       navigate(`/c/${c.conversation_id}`)
       return true
     } catch (e) {
@@ -59,7 +60,7 @@ export function NewChatPage() {
             <li key={ex.text}>
               <button
                 disabled={create.isPending}
-                onClick={() => void onSend(ex.text, [])}
+                onClick={() => void onSend(ex.text, [], [], null)}
                 className="flex h-full w-full items-start gap-2.5 rounded-xl border border-line bg-raised p-3.5 text-left text-sm text-ink-2 transition-colors hover:border-accent/50 hover:bg-surface disabled:opacity-60"
               >
                 <span className="mt-0.5 text-accent">{ex.icon}</span>
@@ -93,6 +94,7 @@ function ConversationView({ id }: { id: string }) {
   const run = useChatStore((s) => s.runs[id] ?? EMPTY_RUN)
   const citations = useChatStore((s) => s.citations)
   const busy = isBusy(run)
+  const contextDocumentIds = useMemo(() => documentIdsFromHistory(msgs.messages), [msgs.messages])
 
   const display = useMemo(() => buildDisplay(msgs.messages, run, citations), [msgs.messages, run, citations])
 
@@ -191,7 +193,8 @@ function ConversationView({ id }: { id: string }) {
         draftKey={id}
         busy={busy}
         autoFocus
-        onSend={(text, fileIds) => sendMessage(qc, id, text, fileIds)}
+        contextDocumentIds={contextDocumentIds}
+        onSend={(text, fileIds, toolIds, mode) => sendMessage(qc, id, text, fileIds, toolIds, { mode })}
       />
     </div>
   )
