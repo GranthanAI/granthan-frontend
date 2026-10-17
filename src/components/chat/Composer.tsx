@@ -142,7 +142,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
                 e.target.value = ''
               }}
             />
-            <Button variant="ghost" size="icon" onClick={() => fileInput.current?.click()} aria-label="Attach files (PDF or text)" title="Attach PDF or text files">
+            <Button variant="ghost" size="icon" onClick={() => fileInput.current?.click()} aria-label="Attach files" title={`Attach ${FILE_POLICY.label} files`}>
               <Paperclip className="size-4" />
             </Button>
             {draft.length > MAX_MESSAGE_CHARS * 0.8 && (

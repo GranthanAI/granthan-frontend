@@ -64,9 +64,12 @@ Key decisions:
   otherwise the user is returned to login with an "expired" notice.
 - **Streaming**: SSE is read with `fetch` (not `EventSource`) so the token travels in the `Authorization` header,
   not the URL. Turns run in a controller outside React (`features/messages/chat-controller.ts`), so a reply keeps
-  streaming while you browse other conversations. Chunks are ordered/deduped by `sequence_number`, the final event's
-  `full_content` replaces the buffer, and persisted history is refetched to reconcile; the live overlay is dropped
-  only after that. A dropped stream falls back to polling history.
+  streaming while you browse other conversations. The client POSTs the message, then opens a *resumable* stream
+  (`?message_id=<assistant id>&since=<event_id>`): the server replays events the browser missed and follows live, so
+  there is no subscription race. It reconnects from the last `event_id` with backoff, dedupes by `sequence_number`,
+  replaces the buffer with the final event's `full_content`, and runs a 5 s persisted-history check in parallel so a
+  turn always resolves (reply, failure, or a clear timeout error) even if the stream is unavailable. A recent
+  timeout-failed row keeps being polled because the real reply can still land later.
 - **Duplicate-submit protection**: one active turn per conversation, plus an `X-Idempotency-Key` that is reused on
   retry so a lost acknowledgement cannot create a second message.
 - **Conversation tree**: built strictly from `parent_conversation_id`; nothing is inferred from titles/timestamps.

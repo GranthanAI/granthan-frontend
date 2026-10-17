@@ -55,7 +55,8 @@ export const fileService = {
     file: File,
     opts: { conversationId?: string | null; onProgress?: (fraction: number) => void; signal?: AbortSignal },
   ): Promise<{ document_id: string }> {
-    const contentType = file.type || inferType(file.name)
+    // Must equal the type declared at initiate or `complete` fails (ContentTypeMismatchError).
+    const contentType = inferType(file.name) || file.type
     const init = await api.post<InitiateUploadResponse>('/files/upload/initiate', {
       conversation_id: opts.conversationId ?? null,
       filename: file.name,

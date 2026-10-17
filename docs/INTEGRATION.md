@@ -27,7 +27,7 @@ Status: **Integrated** (wired to the real contract) · **Partial** · **Unavaila
 | Streaming | conversation via gateway | `GET /stream/{cid}` SSE; events `{message_id(assistant),content,sequence_number,is_final,status,full_content,citations}` | Bearer **header** (the gateway also accepts `?token=`; not used, to keep tokens out of URLs/logs) | Integrated; header auth + keep-alive verified live |
 | Regenerate | conversation | `POST …/messages/{assistantId}/regenerate` → 202 (new `response_message_id`, old answer soft-deleted) | Bearer | Integrated |
 | Delete message | conversation | `DELETE …/messages/{id}` | Bearer | Contract exists; no UI |
-| Files | file | `POST /files/upload/initiate` → presigned URL → `POST /files/{id}/complete` → poll `GET /files/{id}/status` (UPLOADED→SCANNING→PROCESSING→READY\|FAILED); list/get/download/retry/delete | Bearer | Integrated. Policy mirrored client-side: PDF/plain text, ≤100 MB. Browser PUT to MinIO needs bucket CORS for the frontend origin (backend Phase B.6) – **not verified** |
+| Files | file | `POST /files/upload/initiate` → presigned URL → `POST /files/{id}/complete` → poll `GET /files/{id}/status` (UPLOADED→SCANNING→PROCESSING→READY\|FAILED); list/get/download/retry/delete | Bearer | Integrated. Policy mirrored client-side: PDF, text, Markdown, .doc/.docx, ≤100 MB (see `docs/BACKEND_FOR_FRONTEND.md` §9). MinIO CORS for `127.0.0.1:3000` was verified by the backend team; the browser upload itself has not been exercised by this client |
 | Attach files to a message | conversation + file | `file_ids` on send; only `READY` files can be sent | Bearer | Integrated |
 | Retrieval / citations | llm → conversation stream | `citations: [{file_id,source_name,page_number,section}]` on the **final SSE event** | – | Integrated (rendered, expandable). **Not persisted** by the backend, so they vanish after reload |
 | Memory | memory | none (gRPC/internal only; gateway exposes only `/memory/health`) | – | **Unavailable.** Panel explains this; nothing is simulated |
@@ -51,9 +51,17 @@ Status: **Integrated** (wired to the real contract) · **Partial** · **Unavaila
 5. **Citations are only on the live SSE final event.** A future endpoint (or persisting them on the message)
    is needed for reloads.
 6. No public Memory API; no cancel/edit/feedback/search endpoints; `notification-service` missing (no email).
-7. SSE is Redis pub/sub **without replay**: the client opens the stream and waits for the `: ok` subscription
-   comment *before* POSTing the message. If the connection drops mid-answer, it falls back to polling history
-   until the assistant row leaves `pending` (≤150 s).
+7. SSE live delivery is Redis pub/sub (no replay). Conversation Service now also appends every event to a
+   short-lived Redis Stream (`conversation:{id}:events`, 15 min / 2000 events) and
+   `GET /stream/{cid}?message_id=<assistant id>&since=<event_id|0>` replays that turn after the cursor, then follows
+   live, deduplicated by `event_id`, closing after the turn's terminal event. The client POSTs first, then connects
+   with `since=0`, reconnects from the last `event_id`, and independently checks persisted history every 5 s, so a
+   missed event, a dropped stream or an unavailable event log still ends with the persisted reply (≤150 s).
+8. If the backend watchdog fails a turn at 120 s and the real reply lands later, the stored row is overwritten with the
+   reply. The client keeps polling a recent `Generation timed out…` row, so the late reply appears without a reload.
+9. NVIDIA is a reasoning model and can take 20–180 s for a greeting. LLM Service now enforces a first-visible-token
+   deadline (`GENERATION_FIRST_TOKEN_TIMEOUT_MS`, default 8 s) and hands the turn to the configured fallback
+   (`GENERATION_FALLBACK_PROVIDER=groq` in this checkout's `.env`).
 
 ## Development fixtures
 
