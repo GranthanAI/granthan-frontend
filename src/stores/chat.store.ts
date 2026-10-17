@@ -6,6 +6,10 @@ export interface PendingUser {
   tempId: string
   content: string
   fileIds: string[]
+  /** Tool ids chosen for this message; kept so a retry sends exactly the same request. */
+  toolIds: string[]
+  /** Response mode chosen for this message (null = Auto); kept for retry. */
+  mode: string | null
   idempotencyKey: string
   /** Server id once the POST was acknowledged. */
   messageId: string | null

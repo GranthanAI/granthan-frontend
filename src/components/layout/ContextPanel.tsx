@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Brain, Download, FileText, GitBranch, Info, Lock, RefreshCw, Trash2, X } from 'lucide-react'
 import { Alert, Button, EmptyState, Skeleton, Spinner } from '@/components/ui/primitives'
 import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { useDialogs } from '@/features/conversations/dialogs'
 import { useLineage } from '@/features/conversations/hooks'
+import { useMessages } from '@/features/messages/hooks'
+import { allDocumentIds } from '@/features/uploads/useDocumentContext'
 import { errorMessage } from '@/lib/errors'
 import { qk } from '@/lib/query-keys'
 import { cn, parseServerDate } from '@/lib/utils'
@@ -155,18 +157,42 @@ function FilesTab({ conversationId }: { conversationId: string }) {
     refetchInterval: (q) =>
       q.state.data?.items.some((f) => ['UPLOADED', 'SCANNING', 'PROCESSING', 'UPLOADING'].includes(f.status)) ? 3000 : false,
   })
+  // Files uploaded from the new-chat screen are created before the conversation exists, so File Service
+  // has no conversation_id for them. The messages that carry them (file_ids) are the reliable link, so
+  // those documents are merged in alongside the ones listed by conversation_id.
+  const msgs = useMessages(conversationId)
+  const attachedIds = useMemo(() => allDocumentIds(msgs.messages), [msgs.messages])
+  const listedIds = new Set((files.data?.items ?? []).map((f) => f.document_id))
+  const extraIds = attachedIds.filter((id) => !listedIds.has(id))
+  const extras = useQueries({
+    queries: extraIds.map((id) => ({
+      queryKey: qk.file(id),
+      queryFn: () => fileService.get(id),
+      retry: false,
+      staleTime: 10_000,
+      refetchInterval: (q: { state: { data?: { status: string } } }) =>
+        q.state.data && ['UPLOADED', 'SCANNING', 'PROCESSING', 'UPLOADING'].includes(q.state.data.status) ? 3000 : false,
+    })),
+  })
+  const extraItems: FileListItem[] = extras.flatMap((q) =>
+    q.data ? [{ document_id: q.data.document_id, filename: q.data.filename, status: q.data.status }] : [],
+  )
   const [toDelete, setToDelete] = useState<FileListItem | null>(null)
   const del = useMutation({
     mutationFn: (id: string) => fileService.remove(id),
-    onSuccess: () => {
+    onSuccess: (_d, id) => {
       void qc.invalidateQueries({ queryKey: qk.files(conversationId) })
+      void qc.invalidateQueries({ queryKey: qk.file(id) })
       setToDelete(null)
       toast('File deleted', 'success')
     },
   })
   const retry = useMutation({
     mutationFn: (id: string) => fileService.retry(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: qk.files(conversationId) }),
+    onSuccess: (_d, id) => {
+      void qc.invalidateQueries({ queryKey: qk.files(conversationId) })
+      void qc.invalidateQueries({ queryKey: qk.file(id) })
+    },
     onError: (e) => toast(errorMessage(e), 'error'),
   })
   const download = async (id: string) => {
@@ -178,18 +204,20 @@ function FilesTab({ conversationId }: { conversationId: string }) {
     }
   }
 
-  if (files.isPending) return <Skeleton className="h-20" />
-  if (files.isError)
+  if (files.isPending && extraItems.length === 0) return <Skeleton className="h-20" />
+  if (files.isError && extraItems.length === 0)
     return (
       <Alert tone="error" action={<Button size="sm" variant="ghost" onClick={() => void files.refetch()}>Retry</Button>}>
         {errorMessage(files.error)}
       </Alert>
     )
-  const items = files.data.items.filter((f) => f.status !== 'DELETED')
+  const items = [...(files.data?.items ?? []), ...extraItems].filter(
+    (f) => f.status !== 'DELETED' && f.status !== 'DELETING',
+  )
   if (items.length === 0)
     return (
       <EmptyState icon={<FileText className="size-5" />} title="No files in this conversation">
-        Attach a PDF or text file from the message box. Files added while a conversation is open are listed here.
+        Documents you attach to a message in this conversation are listed here, with their processing status.
       </EmptyState>
     )
   return (

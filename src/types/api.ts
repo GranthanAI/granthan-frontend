@@ -143,6 +143,9 @@ export interface FileStatusResponse {
   document_id: string
   status: FileStatus
   retry_count: number
+  /** Only while FAILED: why processing/indexing failed (e.g. a scanned PDF with no text). */
+  error_code?: string | null
+  error_message?: string | null
 }
 
 export interface DownloadResponse {
@@ -159,4 +162,29 @@ export interface GraphConversation {
   created_at: string
   updated_at: string
   parent_conversation_id: string | null
+}
+
+/** One entry of GET /tools: a tool that is registered and enabled in the backend right now. */
+export interface ToolDescriptor {
+  id: string
+  name: string
+  description: string
+  version: string
+  parameters: { name: string; type: string; description: string; required: boolean }[]
+  /** False when the tool needs input that cannot be derived from the chat message. */
+  auto_runnable: boolean
+}
+
+/** A response mode the user may pick (Auto = none selected). Comes from the backend, never hardcoded. */
+export interface ModeDescriptor {
+  id: string
+  name: string
+  description: string
+}
+
+export interface ToolListResponse {
+  tools: ToolDescriptor[]
+  max_selected: number
+  /** Optional: absent from older backends (then no mode selector is shown). */
+  modes?: ModeDescriptor[]
 }

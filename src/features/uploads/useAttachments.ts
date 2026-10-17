@@ -56,7 +56,7 @@ export function useAttachments(conversationId: string | null) {
             return patch(localId, {
               phase: 'failed',
               backendStatus: s.status,
-              error: 'Processing failed. You can retry or remove this file.',
+              error: s.error_message || 'Processing failed. You can retry or remove this file.',
             })
           patch(localId, { phase: 'processing', backendStatus: s.status })
         } catch (e) {

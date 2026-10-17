@@ -297,13 +297,21 @@ async function runTurn({ qc, cid, trigger, replaces, onTriggerError }: RunArgs) 
   }
 }
 
+export interface SendOptions {
+  /** Response mode id (null/undefined = Auto: the backend planner decides). */
+  mode?: string | null
+  retryOf?: { idempotencyKey: string; tempId: string }
+}
+
 export function sendMessage(
   qc: QueryClient,
   cid: string,
   content: string,
   fileIds: string[] = [],
-  retryOf?: { idempotencyKey: string; tempId: string },
+  toolIds: string[] = [],
+  opts: SendOptions = {},
 ): boolean {
+  const { retryOf, mode = null } = opts
   if (active.has(cid) || isBusy(useChatStore.getState().runs[cid])) return false
   const idempotencyKey = retryOf?.idempotencyKey ?? uuid()
   useChatStore.getState().patch(cid, (r) => ({
@@ -312,6 +320,8 @@ export function sendMessage(
       tempId: retryOf?.tempId ?? uuid(),
       content,
       fileIds,
+      toolIds,
+      mode,
       idempotencyKey,
       messageId: null,
       status: 'sending',
@@ -322,7 +332,17 @@ export function sendMessage(
     qc,
     cid,
     trigger: (signal) =>
-      messageService.send(cid, { content, file_ids: fileIds.length ? fileIds : undefined }, idempotencyKey, signal),
+      messageService.send(
+        cid,
+        {
+          content,
+          file_ids: fileIds.length ? fileIds : undefined,
+          selected_tools: toolIds.length ? toolIds : undefined,
+          mode: mode ?? undefined,
+        },
+        idempotencyKey,
+        signal,
+      ),
     onTriggerError: (message) =>
       useChatStore.getState().patch(cid, (r) => ({
         ...r,
@@ -335,7 +355,10 @@ export function sendMessage(
 export function retryPending(qc: QueryClient, cid: string): boolean {
   const p = useChatStore.getState().runs[cid]?.pendingUser
   if (!p || p.status !== 'failed') return false
-  return sendMessage(qc, cid, p.content, p.fileIds, { idempotencyKey: p.idempotencyKey, tempId: p.tempId })
+  return sendMessage(qc, cid, p.content, p.fileIds, p.toolIds ?? [], {
+    mode: p.mode ?? null,
+    retryOf: { idempotencyKey: p.idempotencyKey, tempId: p.tempId },
+  })
 }
 
 export function dismissPending(cid: string) {
