@@ -14,11 +14,16 @@ export interface FloatingWin {
   collapsed: boolean
   /** Hierarchy windows only: re-target to whichever conversation is open in the main view. */
   follow: boolean
+  /** Size stepper value; the current size counts as 100% after any manual resize. */
+  pct: number
 }
 
 export const MIN_W = 280
 export const MIN_H = 180
 export const MAX_WINDOWS = 10
+export const PCT_MIN = 50
+export const PCT_MAX = 200
+export const PCT_STEP = 25
 const HEADER_H = 36
 
 export const winKey = (kind: WindowKind, conversationId: string) => `${kind}:${conversationId}`
@@ -50,8 +55,8 @@ interface WindowsState {
   open: (kind: WindowKind, conversationId: string, opts?: { follow?: boolean }) => void
   /** The main view switched conversation: followers show that conversation's hierarchy instead. */
   retarget: (conversationId: string) => void
-  /** Scales a window about its top-left corner (clamped to the minimum size and the screen). */
-  scale: (key: string, factor: number) => void
+  /** Sets the size stepper (50%-200%), scaling about the top-left corner within the minimum size and the screen. */
+  setPct: (key: string, pct: number) => void
   close: (key: string) => void
   closeAll: () => void
   focus: (key: string) => void
@@ -81,7 +86,7 @@ export const useWindowsStore = create<WindowsState>()((set) => ({
       // Cascade from the top-right so successive windows stack visibly instead of hiding each other.
       const step = s.windows.length % 7
       const pos = clampPosition(vp.w - w - 24 - step * 32, 56 + step * 32, w)
-      const next: FloatingWin = { key, kind, conversationId, ...pos, w, h, z, collapsed: false, follow: !!opts?.follow }
+      const next: FloatingWin = { key, kind, conversationId, ...pos, w, h, z, collapsed: false, follow: !!opts?.follow, pct: 100 }
       // Over the cap the oldest (lowest) window makes room.
       const kept =
         s.windows.length >= MAX_WINDOWS
@@ -102,16 +107,18 @@ export const useWindowsStore = create<WindowsState>()((set) => ({
       const winner = same.find((w) => !w.follow) ?? same.sort((a, b) => b.z - a.z)[0]
       return { windows: winner ? [...keep, winner] : keep }
     }),
-  scale: (key, factor) =>
+  setPct: (key, pctRaw) =>
     set((s) => {
       const vp = viewport()
+      const pct = Math.min(PCT_MAX, Math.max(PCT_MIN, Math.round(pctRaw)))
       return {
         windows: s.windows.map((w) => {
-          if (w.key !== key) return w
+          if (w.key !== key || w.pct === pct) return w
+          const factor = pct / w.pct
           const nw = Math.round(Math.min(Math.max(MIN_W, w.w * factor), vp.w - 16))
           const nh = Math.round(Math.min(Math.max(MIN_H, w.h * factor), vp.h - 16))
           const pos = clampPosition(Math.min(w.x, vp.w - nw - 8), Math.min(w.y, vp.h - nh - 8), nw)
-          return { ...w, w: nw, h: nh, x: pos.x, y: Math.max(0, pos.y) }
+          return { ...w, w: nw, h: nh, x: pos.x, y: Math.max(0, pos.y), pct }
         }),
       }
     }),
@@ -128,5 +135,10 @@ export const useWindowsStore = create<WindowsState>()((set) => ({
   toggleCollapsed: (key) =>
     set((s) => ({ windows: s.windows.map((w) => (w.key === key ? { ...w, collapsed: !w.collapsed } : w)) })),
   setRect: (key, rect) =>
-    set((s) => ({ windows: s.windows.map((w) => (w.key === key ? { ...w, ...rect } : w)) })),
+    set((s) => ({
+      windows: s.windows.map((w) =>
+        // Dragging only moves; a manual resize makes the new size the 100% baseline.
+        w.key === key ? { ...w, ...rect, ...(rect.w !== undefined || rect.h !== undefined ? { pct: 100 } : {}) } : w,
+      ),
+    })),
 }))

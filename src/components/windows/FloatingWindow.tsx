@@ -1,7 +1,7 @@
 import { useRef, type PointerEvent as RPointerEvent, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, Minus, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { clampPosition, MIN_H, MIN_W, useWindowsStore, type FloatingWin } from '@/stores/windows.store'
+import { clampPosition, MIN_H, MIN_W, PCT_MAX, PCT_MIN, PCT_STEP, useWindowsStore, type FloatingWin } from '@/stores/windows.store'
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 
@@ -29,7 +29,7 @@ const HEADER_H = 36
 
 /** A draggable, resizable, collapsible window. Drag by the title bar; resize from any edge or corner. */
 export function FloatingWindow({ win, title, icon, actions, children }: Props) {
-  const { focus, close, toggleCollapsed, setRect, scale } = useWindowsStore.getState()
+  const { focus, close, toggleCollapsed, setRect, setPct } = useWindowsStore.getState()
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null)
   const resize = useRef<{ edge: Edge; px: number; py: number; x: number; y: number; w: number; h: number } | null>(null)
 
@@ -100,14 +100,37 @@ export function FloatingWindow({ win, title, icon, actions, children }: Props) {
         <h2 className="min-w-0 flex-1 truncate text-xs font-medium">{title}</h2>
         {actions}
         {!win.collapsed && (
-          <>
-            <WinButton label="Make window smaller (50%)" onClick={() => scale(win.key, 0.5)}>
+          <div role="group" aria-label="Window size" className="flex items-center rounded-md border border-line bg-raised">
+            <button
+              type="button"
+              aria-label="Decrease window size"
+              title="Smaller"
+              disabled={win.pct <= PCT_MIN}
+              onClick={() => setPct(win.key, win.pct - PCT_STEP)}
+              className="flex size-6 items-center justify-center text-ink-2 hover:bg-line disabled:opacity-40"
+            >
               <Minus className="size-3.5" />
-            </WinButton>
-            <WinButton label="Make window larger (+50%)" onClick={() => scale(win.key, 1.5)}>
+            </button>
+            <button
+              type="button"
+              aria-label={`Window size ${win.pct}%, click to reset to 100%`}
+              title="Reset to 100%"
+              onClick={() => setPct(win.key, 100)}
+              className="min-w-10 px-1 text-center text-[11px] tabular-nums text-ink-2 hover:bg-line"
+            >
+              {win.pct}%
+            </button>
+            <button
+              type="button"
+              aria-label="Increase window size"
+              title="Larger"
+              disabled={win.pct >= PCT_MAX}
+              onClick={() => setPct(win.key, win.pct + PCT_STEP)}
+              className="flex size-6 items-center justify-center text-ink-2 hover:bg-line disabled:opacity-40"
+            >
               <Plus className="size-3.5" />
-            </WinButton>
-          </>
+            </button>
+          </div>
         )}
         <WinButton label={win.collapsed ? 'Expand window' : 'Collapse window'} onClick={() => toggleCollapsed(win.key)}>
           {win.collapsed ? <ChevronDown className="size-3.5" /> : <ChevronUp className="size-3.5" />}

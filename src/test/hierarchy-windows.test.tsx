@@ -191,16 +191,32 @@ describe('following the main conversation and scaling', () => {
     expect(st().windows[0]!.follow).toBe(false)
   })
 
-  it('shrinks to 50% and grows by 50%, within the minimum size', () => {
+  it('size stepper goes from 100% down to 50% and up to 200% in steps', () => {
     st().open('chat', 'a')
-    const { w, h } = st().windows[0]!
-    st().scale('chat:a', 0.5)
-    expect(st().windows[0]!.w).toBe(Math.max(MIN_W, Math.round(w * 0.5)))
-    expect(st().windows[0]!.h).toBe(Math.max(MIN_H, Math.round(h * 0.5)))
-    const small = st().windows[0]!.w
-    st().scale('chat:a', 1.5)
-    expect(st().windows[0]!.w).toBeGreaterThan(small)
-    for (let i = 0; i < 8; i++) st().scale('chat:a', 0.5)
-    expect(st().windows[0]!.w).toBe(MIN_W)
+    const { w } = st().windows[0]!
+    st().setPct('chat:a', 75)
+    expect(st().windows[0]).toMatchObject({ pct: 75 })
+    expect(st().windows[0]!.w).toBeLessThan(w)
+    st().setPct('chat:a', 100)
+    expect(st().windows[0]!.w).toBe(w)
+    st().setPct('chat:a', 10)
+    expect(st().windows[0]!.pct).toBe(50)
+    st().setPct('chat:a', 999)
+    expect(st().windows[0]!.pct).toBe(200)
+  })
+
+  it('a manual resize makes the new size the 100% baseline', () => {
+    st().open('chat', 'a')
+    st().setPct('chat:a', 150)
+    st().setRect('chat:a', { w: 500, h: 400 })
+    expect(st().windows[0]!.pct).toBe(100)
+  })
+
+  it('the - 100% + control steps the window size', () => {
+    st().open('hierarchy', 'a')
+    render(<FloatingWindow win={st().windows[0]!} title="W">x</FloatingWindow>)
+    expect(screen.getByRole('button', { name: /Window size 100%/ })).toHaveTextContent('100%')
+    fireEvent.click(screen.getByRole('button', { name: 'Increase window size' }))
+    expect(st().windows[0]!.pct).toBe(125)
   })
 })
