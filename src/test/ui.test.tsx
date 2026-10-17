@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
@@ -153,5 +153,25 @@ describe('signup with email verification toggled server-side', () => {
     await fillAndSubmit()
     await waitFor(() => expect(router.state.location.pathname).toBe('/verify-email'))
     expect(login).not.toHaveBeenCalled()
+  })
+})
+
+describe('settings pages', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ items: [], next_cursor: null, has_more: false }), { status: 200 })))
+    useAuthStore.setState({ status: 'authenticated', accessToken: 't', user: null })
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('/settings opens Profile and each domain has its own page', async () => {
+    const router = renderApp('/settings')
+    expect(await screen.findByRole('heading', { name: 'Profile' })).toBeInTheDocument()
+    expect(router.state.location.pathname).toBe('/settings/profile')
+    const nav = screen.getByRole('navigation', { name: 'Settings' })
+    for (const [label, path] of [['Security', 'security'], ['Appearance', 'appearance'], ['Text style', 'text-style']] as const) {
+      await userEvent.click(within(nav).getByRole('link', { name: label }))
+      expect(await screen.findByRole('heading', { name: label === 'Security' ? 'Change password' : label })).toBeInTheDocument()
+      expect(router.state.location.pathname).toBe(`/settings/${path}`)
+    }
   })
 })

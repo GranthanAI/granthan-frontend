@@ -202,7 +202,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
           placeholder={placeholder ?? 'Message GranthanAI…'}
           enterKeyHint="send"
           aria-invalid={tooLong || undefined}
-          className="block max-h-[40dvh] w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[0.9375rem] leading-6 placeholder:text-ink-3 focus:outline-none"
+          className="font-input block max-h-[40dvh] w-full resize-none bg-transparent px-4 pb-1 pt-3.5 text-[0.9375rem] leading-6 placeholder:text-ink-3 focus:outline-none"
         />
         <div className="flex items-center justify-between gap-2 px-2 pb-2">
           <div className="flex items-center gap-1">

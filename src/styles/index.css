@@ -157,9 +157,23 @@ body {
   }
 }
 
+/* User-chosen text style (Settings > Text style). Unset variables fall back to the app font. */
+.font-input {
+  font-family: var(--input-font-family, inherit);
+  font-weight: var(--input-font-weight, inherit);
+  font-style: var(--input-font-style, inherit);
+  font-size: var(--input-font-size, 0.9375rem);
+}
+.font-response {
+  font-family: var(--response-font-family, inherit);
+  font-weight: var(--response-font-weight, inherit);
+  font-style: var(--response-font-style, inherit);
+  font-size: var(--response-font-size, 0.9375rem);
+}
+
 /* Rendered Markdown */
 .prose-chat {
-  font-size: 0.9375rem;
+  font-size: 1em; /* follows .font-response, default 0.9375rem */
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -175,13 +189,13 @@ body {
   margin-top: 1.4em;
 }
 .prose-chat h1 {
-  font-size: 1.35rem;
+  font-size: 1.44em;
 }
 .prose-chat h2 {
-  font-size: 1.2rem;
+  font-size: 1.28em;
 }
 .prose-chat h3 {
-  font-size: 1.05rem;
+  font-size: 1.12em;
 }
 .prose-chat ul,
 .prose-chat ol {
