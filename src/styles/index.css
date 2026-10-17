@@ -172,6 +172,13 @@ body {
   font-size: calc(var(--response-font-size, 0.9375rem) * var(--win-scale, 1));
 }
 
+/* Bold inside replies is the chosen weight plus a step, capped at 800. The browser default (`bolder`) jumps a
+   700 base to 900, which many families (e.g. Arial) draw as a different, very heavy face (Arial Black). */
+.prose-chat strong,
+.prose-chat b {
+  font-weight: min(800, calc(var(--response-font-weight, 400) + 300));
+}
+
 /* Rendered Markdown */
 .prose-chat {
   font-size: 1em; /* follows .font-response, default 0.9375rem */
