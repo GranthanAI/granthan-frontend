@@ -1,7 +1,18 @@
 import { useRef, type PointerEvent as RPointerEvent, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, Minus, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { clampPosition, MIN_H, MIN_W, OPACITY_MIN, PCT_MAX, PCT_MIN, PCT_STEP, useWindowsStore, type FloatingWin } from '@/stores/windows.store'
+import {
+  clampPosition,
+  MIN_H,
+  MIN_W,
+  OPACITY_MIN,
+  PCT_MAX,
+  PCT_MIN,
+  PCT_STEP,
+  textScale,
+  useWindowsStore,
+  type FloatingWin,
+} from '@/stores/windows.store'
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 
@@ -31,7 +42,15 @@ const HEADER_H = 36
 export function FloatingWindow({ win, title, icon, actions, children }: Props) {
   const { focus, close, toggleCollapsed, setRect, setPct, setOpacity } = useWindowsStore.getState()
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null)
-  const resize = useRef<{ edge: Edge; px: number; py: number; x: number; y: number; w: number; h: number } | null>(null)
+  const resize = useRef<{
+    edge: Edge
+    px: number
+    py: number
+    x: number
+    y: number
+    w: number
+    h: number
+  } | null>(null)
 
   const onHeaderDown = (e: RPointerEvent<HTMLDivElement>) => {
     if ((e.target as HTMLElement).closest('button, a, input')) return
@@ -83,7 +102,15 @@ export function FloatingWindow({ win, title, icon, actions, children }: Props) {
       aria-label={title}
       data-floating-window={win.key}
       onPointerDownCapture={() => focus(win.key)}
-      style={{ left: win.x, top: win.y, width: win.w, height: win.collapsed ? HEADER_H : win.h, zIndex: win.z, opacity: win.opacity / 100 }}
+      style={{
+        left: win.x,
+        top: win.y,
+        width: win.w,
+        height: win.collapsed ? HEADER_H : win.h,
+        zIndex: win.z,
+        opacity: win.opacity / 100,
+        ['--win-scale' as string]: textScale(win.w, win.h),
+      }}
       className="pointer-events-auto fixed flex flex-col overflow-hidden rounded-xl border border-line bg-raised shadow-pop"
     >
       <div
@@ -100,7 +127,10 @@ export function FloatingWindow({ win, title, icon, actions, children }: Props) {
         <h2 className="min-w-0 flex-1 truncate text-xs font-medium">{title}</h2>
         {actions}
         {!win.collapsed && (
-          <label className="flex items-center gap-1 text-[11px] tabular-nums text-ink-3" title="Window opacity">
+          <label
+            className="flex items-center gap-1 text-[11px] tabular-nums text-ink-3"
+            title="Window opacity"
+          >
             <span className="sr-only">Window opacity</span>
             <input
               type="range"
@@ -115,7 +145,11 @@ export function FloatingWindow({ win, title, icon, actions, children }: Props) {
           </label>
         )}
         {!win.collapsed && (
-          <div role="group" aria-label="Window size" className="flex items-center rounded-md border border-line bg-raised">
+          <div
+            role="group"
+            aria-label="Window size"
+            className="flex items-center rounded-md border border-line bg-raised"
+          >
             <button
               type="button"
               aria-label="Decrease window size"
@@ -147,8 +181,15 @@ export function FloatingWindow({ win, title, icon, actions, children }: Props) {
             </button>
           </div>
         )}
-        <WinButton label={win.collapsed ? 'Expand window' : 'Collapse window'} onClick={() => toggleCollapsed(win.key)}>
-          {win.collapsed ? <ChevronDown className="size-3.5" /> : <ChevronUp className="size-3.5" />}
+        <WinButton
+          label={win.collapsed ? 'Expand window' : 'Collapse window'}
+          onClick={() => toggleCollapsed(win.key)}
+        >
+          {win.collapsed ? (
+            <ChevronDown className="size-3.5" />
+          ) : (
+            <ChevronUp className="size-3.5" />
+          )}
         </WinButton>
         <WinButton label="Close window" onClick={() => close(win.key)}>
           <X className="size-3.5" />
@@ -175,7 +216,15 @@ export function FloatingWindow({ win, title, icon, actions, children }: Props) {
   )
 }
 
-export function WinButton({ label, onClick, children }: { label: string; onClick: () => void; children: ReactNode }) {
+export function WinButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  children: ReactNode
+}) {
   return (
     <button
       type="button"

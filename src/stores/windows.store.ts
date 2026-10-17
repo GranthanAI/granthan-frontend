@@ -29,10 +29,20 @@ export const PCT_MAX = 200
 export const PCT_STEP = 10
 const HEADER_H = 36
 
+/** Reference window size at which chat text is shown at its normal size. */
+const BASE_W = 440
+const BASE_H = 560
+
+/** Text scale for a window: grows and shrinks with its size (about 0.75x - 2x). */
+export function textScale(w: number, h: number): number {
+  const scale = Math.sqrt((w / BASE_W) * (h / BASE_H))
+  return Math.round(Math.min(2, Math.max(0.75, scale)) * 100) / 100
+}
+
 export const winKey = (kind: WindowKind, conversationId: string) => `${kind}:${conversationId}`
 
 const DEFAULT_SIZE: Record<WindowKind, { w: number; h: number }> = {
-  chat: { w: 440, h: 560 },
+  chat: { w: BASE_W, h: BASE_H },
   hierarchy: { w: 400, h: 320 },
 }
 

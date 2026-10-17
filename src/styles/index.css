@@ -162,13 +162,14 @@ body {
   font-family: var(--input-font-family, inherit);
   font-weight: var(--input-font-weight, inherit);
   font-style: var(--input-font-style, inherit);
-  font-size: var(--input-font-size, 0.9375rem);
+  /* --win-scale is set by floating windows so chat text follows the window size */
+  font-size: calc(var(--input-font-size, 0.9375rem) * var(--win-scale, 1));
 }
 .font-response {
   font-family: var(--response-font-family, inherit);
   font-weight: var(--response-font-weight, inherit);
   font-style: var(--response-font-style, inherit);
-  font-size: var(--response-font-size, 0.9375rem);
+  font-size: calc(var(--response-font-size, 0.9375rem) * var(--win-scale, 1));
 }
 
 /* Rendered Markdown */
