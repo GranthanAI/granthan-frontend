@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
 import { Outlet, useLocation, useParams } from 'react-router-dom'
-import { GitBranch, Menu as MenuIcon, PanelLeftOpen, PanelRight } from 'lucide-react'
+import { GitBranch, Menu as MenuIcon, Network, PanelLeftOpen, PanelRight } from 'lucide-react'
 import { Button } from '@/components/ui/primitives'
 import { Toaster } from '@/components/ui/overlays'
 import { ConversationDialogs, useDialogs } from '@/features/conversations/dialogs'
 import { useConversation } from '@/features/conversations/hooks'
 import { cn } from '@/lib/utils'
+import { WindowLayer } from '@/components/windows/WindowLayer'
+import { useWindowsStore } from '@/stores/windows.store'
 import { useUiStore } from '@/stores/ui.store'
 import { ContextPanel } from './ContextPanel'
 import { Sidebar } from './Sidebar'
@@ -17,6 +19,13 @@ export function AppShell() {
   const { sidebarCollapsed, toggleSidebar, mobileSidebarOpen, setMobileSidebar, panelOpen, openPanel, closePanel } =
     useUiStore()
   const openDialog = useDialogs((s) => s.open)
+  const openWindow = useWindowsStore((s) => s.open)
+  const retargetWindows = useWindowsStore((s) => s.retarget)
+
+  // Hierarchy windows opened from the main view follow it when another conversation is selected.
+  useEffect(() => {
+    if (id) retargetWindows(id)
+  }, [id, retargetWindows])
 
   // Close transient surfaces on navigation.
   useEffect(() => {
@@ -75,6 +84,11 @@ export function AppShell() {
             )}
             <h1 className="min-w-0 flex-1 truncate px-2 text-sm font-medium">{isSettings ? 'Settings' : title}</h1>
             {conversation && (
+              <Button variant="ghost" size="sm" onClick={() => openWindow('hierarchy', conversation.conversation_id, { follow: true })} title="Show the branch graph of this conversation">
+                <Network className="size-4" /> <span className="max-sm:hidden">Chat hierarchy</span>
+              </Button>
+            )}
+            {conversation && (
               <Button variant="ghost" size="sm" onClick={() => openDialog({ kind: 'branch', conversation })} title="Start a linked conversation">
                 <GitBranch className="size-4" /> <span className="max-sm:hidden">Branch</span>
               </Button>
@@ -111,6 +125,7 @@ export function AppShell() {
         )}
       </div>
 
+      <WindowLayer />
       <ConversationDialogs />
       <Toaster />
     </div>

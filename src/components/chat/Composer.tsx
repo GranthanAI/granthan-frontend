@@ -20,6 +20,8 @@ interface Props {
   busy: boolean
   placeholder?: string
   autoFocus?: boolean
+  /** Textarea id; floating windows pass their own so ids stay unique. */
+  inputId?: string
   /** Return true if the message was accepted (the composer then clears itself). */
   /** Documents attached earlier in this conversation (ids), offered as context for follow-ups. */
   contextDocumentIds?: string[]
@@ -28,7 +30,7 @@ interface Props {
 
 const NO_IDS: string[] = []
 
-export function Composer({ conversationId, draftKey, busy, placeholder, autoFocus, contextDocumentIds = NO_IDS, onSend }: Props) {
+export function Composer({ conversationId, draftKey, busy, placeholder, autoFocus, inputId = 'composer-input', contextDocumentIds = NO_IDS, onSend }: Props) {
   const draft = useDraftStore((s) => s.drafts[draftKey] ?? '')
   const setDraft = useDraftStore((s) => s.set)
   const clearDraft = useDraftStore((s) => s.clear)
@@ -187,11 +189,11 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
             ))}
           </ul>
         )}
-        <label htmlFor="composer-input" className="sr-only">
+        <label htmlFor={inputId} className="sr-only">
           Message GranthanAI
         </label>
         <textarea
-          id="composer-input"
+          id={inputId}
           ref={ref}
           rows={1}
           value={draft}

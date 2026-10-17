@@ -44,7 +44,9 @@ export function SelectionActions({
       const f = elementOf(sel.focusNode)
       const msgA = a?.closest('[data-message-id]')
       const msgF = f?.closest('[data-message-id]')
-      if (!msgA || msgA !== msgF || !a?.closest('[data-chat-messages]')) return setAnchor(null)
+      if (!msgA || msgA !== msgF || !a?.closest('[data-chat-messages]') || a.closest('[data-floating-window]')) {
+        return setAnchor(null) // floating windows are separate conversations: never branch the main one from them
+      }
       const r = sel.getRangeAt(0).getBoundingClientRect()
       setAnchor({ text, top: r.top, bottom: r.bottom, left: r.left + r.width / 2 })
     }

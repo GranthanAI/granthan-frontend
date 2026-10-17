@@ -89,7 +89,8 @@ export function ConversationPage() {
   return <ConversationView key={id} id={id} />
 }
 
-function ConversationView({ id }: { id: string }) {
+/** `embedded` renders the chat inside a floating window: no text-selection toolbar, no autofocus. */
+export function ConversationView({ id, embedded = false }: { id: string; embedded?: boolean }) {
   const qc = useQueryClient()
   const conv = useConversation(id)
   const msgs = useMessages(id)
@@ -191,12 +192,13 @@ function ConversationView({ id }: { id: string }) {
           <Alert tone="warn">Could not refresh messages. Showing what was loaded. {errorMessage(msgs.error)}</Alert>
         </div>
       )}
-      <SelectionActions onNewBranch={(t) => void selection.newBranch(t)} onThisBranch={selection.thisBranch} pending={selection.pending} />
+      {!embedded && <SelectionActions onNewBranch={(t) => void selection.newBranch(t)} onThisBranch={selection.thisBranch} pending={selection.pending} />}
       <Composer
         conversationId={id}
         draftKey={id}
         busy={busy}
-        autoFocus
+        autoFocus={!embedded}
+        inputId={embedded ? `composer-input-${id}` : undefined}
         contextDocumentIds={contextDocumentIds}
         onSend={(text, fileIds, toolIds, mode) => sendMessage(qc, id, text, fileIds, toolIds, { mode })}
       />
