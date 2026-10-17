@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertCircle, ArrowUp, CheckCircle2, FileText, Paperclip, RefreshCw, Wrench, X } from 'lucide-react'
+import { AlertCircle, ArrowUp, CheckCircle2, FileText, Paperclip, Quote, RefreshCw, Wrench, X } from 'lucide-react'
 import { Button, Spinner } from '@/components/ui/primitives'
 import { FILE_POLICY } from '@/lib/config'
 import { cn, formatBytes } from '@/lib/utils'
@@ -8,6 +8,8 @@ import { useDocumentContext } from '@/features/uploads/useDocumentContext'
 import { useToolSelection } from '@/features/tools/useTools'
 import { ToolPicker } from './ToolPicker'
 import { useDraftStore } from '@/stores/draft.store'
+import { useQuoteStore } from '@/stores/quote.store'
+import { formatQuoted } from '@/lib/quote'
 
 export const MAX_MESSAGE_CHARS = 8000
 
@@ -31,6 +33,8 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
   const setDraft = useDraftStore((s) => s.set)
   const clearDraft = useDraftStore((s) => s.clear)
   const att = useAttachments(conversationId)
+  const quote = useQuoteStore((s) => s.byKey[draftKey] ?? null)
+  const clearQuote = useQuoteStore((s) => s.clear)
   const tools = useToolSelection(draftKey)
   const docs = useDocumentContext(contextDocumentIds)
   const ref = useRef<HTMLTextAreaElement>(null)
@@ -51,7 +55,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
   }, [autoFocus, draftKey])
 
   const text = draft.trim()
-  const tooLong = draft.length > MAX_MESSAGE_CHARS
+  const tooLong = formatQuoted(quote, draft).length > MAX_MESSAGE_CHARS
   const canSend = !!text && !tooLong && !busy && !submitting && !att.blocking
   const reason = busy
     ? 'Wait for the current response to finish'
@@ -65,9 +69,11 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
     try {
       // New attachments plus still-usable documents from earlier in the conversation (no duplicates).
       const fileIds = [...new Set([...docs.includedIds, ...att.readyIds])]
-      const ok = await onSend(text, fileIds, tools.selected, tools.mode)
+      // The selected excerpt (if any) is sent with the prompt as a quote block.
+      const ok = await onSend(formatQuoted(quote, text), fileIds, tools.selected, tools.mode)
       if (ok) {
         clearDraft(draftKey)
+        clearQuote(draftKey)
         att.clear()
         tools.clear()
       }
@@ -125,6 +131,15 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
               <AttachmentChip key={a.localId} a={a} onRemove={() => att.remove(a.localId)} onRetry={() => void att.retry(a.localId)} />
             ))}
           </ul>
+        )}
+        {quote && (
+          <div className="mx-3 mt-3 flex items-start gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-xs">
+            <Quote className="mt-0.5 size-3.5 shrink-0 text-accent" aria-hidden />
+            <p className="line-clamp-2 min-w-0 flex-1 whitespace-pre-wrap text-ink-2" title={quote}>{quote}</p>
+            <button onClick={() => clearQuote(draftKey)} aria-label="Remove quoted text" className="rounded p-0.5 text-ink-3 hover:text-ink">
+              <X className="size-3.5" />
+            </button>
+          </div>
         )}
         {(tools.selected.length > 0 || !!tools.mode || docs.documents.length > 0) && (
           <ul className="flex flex-wrap gap-2 px-3 pt-3" aria-label="Message context">
@@ -204,9 +219,9 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
               <Paperclip className="size-4" />
             </Button>
             <ToolPicker selection={tools} disabled={busy} />
-            {draft.length > MAX_MESSAGE_CHARS * 0.8 && (
+            {formatQuoted(quote, draft).length > MAX_MESSAGE_CHARS * 0.8 && (
               <span className={cn('text-xs', tooLong ? 'text-danger' : 'text-ink-3')} role={tooLong ? 'alert' : undefined}>
-                {draft.length}/{MAX_MESSAGE_CHARS}
+                {formatQuoted(quote, draft).length}/{MAX_MESSAGE_CHARS}
               </span>
             )}
           </div>
