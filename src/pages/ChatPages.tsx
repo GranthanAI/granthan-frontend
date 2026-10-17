@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Code2, FileSearch, GitBranch, Lightbulb } from 'lucide-react'
 import { Composer } from '@/components/chat/Composer'
+import { SelectionActions } from '@/components/chat/SelectionActions'
+import { useSelectionBranch } from '@/features/conversations/useSelectionBranch'
 import { MessageList } from '@/components/chat/MessageList'
 import { Alert, Button, Logo, Skeleton } from '@/components/ui/primitives'
 import { toast } from '@/components/ui/overlays'
@@ -94,6 +96,7 @@ function ConversationView({ id }: { id: string }) {
   const run = useChatStore((s) => s.runs[id] ?? EMPTY_RUN)
   const citations = useChatStore((s) => s.citations)
   const busy = isBusy(run)
+  const selection = useSelectionBranch(id)
   const contextDocumentIds = useMemo(() => documentIdsFromHistory(msgs.messages), [msgs.messages])
 
   const display = useMemo(() => buildDisplay(msgs.messages, run, citations), [msgs.messages, run, citations])
@@ -188,6 +191,7 @@ function ConversationView({ id }: { id: string }) {
           <Alert tone="warn">Could not refresh messages. Showing what was loaded. {errorMessage(msgs.error)}</Alert>
         </div>
       )}
+      <SelectionActions onNewBranch={(t) => void selection.newBranch(t)} onThisBranch={selection.thisBranch} pending={selection.pending} />
       <Composer
         conversationId={id}
         draftKey={id}

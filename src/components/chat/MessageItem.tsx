@@ -2,6 +2,7 @@ import { lazy, memo, Suspense, useState } from 'react'
 import { AlertCircle, Check, ChevronDown, Copy, FileText, Paperclip, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/primitives'
 import { copyText } from '@/lib/clipboard'
+import { parseQuoted } from '@/lib/quote'
 import { cn } from '@/lib/utils'
 import type { DisplayMessage } from '@/features/messages/display'
 
@@ -39,6 +40,7 @@ function UserMessage({
   onRetrySend: () => void
   onDismissSend: () => void
 }) {
+  const { quote, body } = parseQuoted(m.content)
   return (
     <div className="animate-in flex flex-col items-end gap-1.5" data-message-id={m.id ?? undefined}>
       <div
@@ -49,7 +51,10 @@ function UserMessage({
           m.status === 'sending' && 'opacity-70',
         )}
       >
-        {m.content}
+        {quote && (
+          <blockquote className="mb-2 line-clamp-4 border-l-2 border-accent/60 pl-2.5 text-sm text-ink-2">{quote}</blockquote>
+        )}
+        {body}
       </div>
       {m.fileIds.length > 0 && (
         <span className="inline-flex items-center gap-1 text-xs text-ink-3">
