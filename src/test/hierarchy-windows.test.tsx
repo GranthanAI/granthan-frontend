@@ -219,4 +219,14 @@ describe('following the main conversation and scaling', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Increase window size' }))
     expect(st().windows[0]!.pct).toBe(110)
   })
+
+  it('opacity slider changes the window opacity within 30-100%', () => {
+    st().open('hierarchy', 'a')
+    const { container } = render(<FloatingWindow win={st().windows[0]!} title="W">x</FloatingWindow>)
+    fireEvent.change(screen.getByRole('slider', { name: 'Window opacity' }), { target: { value: '60' } })
+    expect(st().windows[0]!.opacity).toBe(60)
+    st().setOpacity('hierarchy:a', 0)
+    expect(st().windows[0]!.opacity).toBe(30)
+    expect((container.firstElementChild as HTMLElement).style.opacity).toBe('1')
+  })
 })

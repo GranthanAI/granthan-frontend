@@ -1,7 +1,7 @@
 import { useRef, type PointerEvent as RPointerEvent, type ReactNode } from 'react'
 import { ChevronDown, ChevronUp, Minus, Plus, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { clampPosition, MIN_H, MIN_W, PCT_MAX, PCT_MIN, PCT_STEP, useWindowsStore, type FloatingWin } from '@/stores/windows.store'
+import { clampPosition, MIN_H, MIN_W, OPACITY_MIN, PCT_MAX, PCT_MIN, PCT_STEP, useWindowsStore, type FloatingWin } from '@/stores/windows.store'
 
 type Edge = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
 
@@ -29,12 +29,12 @@ const HEADER_H = 36
 
 /** A draggable, resizable, collapsible window. Drag by the title bar; resize from any edge or corner. */
 export function FloatingWindow({ win, title, icon, actions, children }: Props) {
-  const { focus, close, toggleCollapsed, setRect, setPct } = useWindowsStore.getState()
+  const { focus, close, toggleCollapsed, setRect, setPct, setOpacity } = useWindowsStore.getState()
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null)
   const resize = useRef<{ edge: Edge; px: number; py: number; x: number; y: number; w: number; h: number } | null>(null)
 
   const onHeaderDown = (e: RPointerEvent<HTMLDivElement>) => {
-    if ((e.target as HTMLElement).closest('button, a')) return
+    if ((e.target as HTMLElement).closest('button, a, input')) return
     e.preventDefault()
     e.currentTarget.setPointerCapture?.(e.pointerId)
     drag.current = { px: e.clientX, py: e.clientY, x: win.x, y: win.y }
@@ -83,7 +83,7 @@ export function FloatingWindow({ win, title, icon, actions, children }: Props) {
       aria-label={title}
       data-floating-window={win.key}
       onPointerDownCapture={() => focus(win.key)}
-      style={{ left: win.x, top: win.y, width: win.w, height: win.collapsed ? HEADER_H : win.h, zIndex: win.z }}
+      style={{ left: win.x, top: win.y, width: win.w, height: win.collapsed ? HEADER_H : win.h, zIndex: win.z, opacity: win.opacity / 100 }}
       className="pointer-events-auto fixed flex flex-col overflow-hidden rounded-xl border border-line bg-raised shadow-pop"
     >
       <div
@@ -99,6 +99,21 @@ export function FloatingWindow({ win, title, icon, actions, children }: Props) {
         {icon && <span className="shrink-0 text-ink-3">{icon}</span>}
         <h2 className="min-w-0 flex-1 truncate text-xs font-medium">{title}</h2>
         {actions}
+        {!win.collapsed && (
+          <label className="flex items-center gap-1 text-[11px] tabular-nums text-ink-3" title="Window opacity">
+            <span className="sr-only">Window opacity</span>
+            <input
+              type="range"
+              min={OPACITY_MIN}
+              max={100}
+              step={5}
+              value={win.opacity}
+              onChange={(e) => setOpacity(win.key, Number(e.target.value))}
+              aria-valuetext={`${win.opacity}%`}
+              className="h-1 w-14 cursor-pointer accent-accent"
+            />
+          </label>
+        )}
         {!win.collapsed && (
           <div role="group" aria-label="Window size" className="flex items-center rounded-md border border-line bg-raised">
             <button

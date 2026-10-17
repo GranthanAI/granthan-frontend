@@ -16,11 +16,14 @@ export interface FloatingWin {
   follow: boolean
   /** Size stepper value; the current size counts as 100% after any manual resize. */
   pct: number
+  /** Window opacity in percent (OPACITY_MIN-100). */
+  opacity: number
 }
 
 export const MIN_W = 280
 export const MIN_H = 180
 export const MAX_WINDOWS = 10
+export const OPACITY_MIN = 30
 export const PCT_MIN = 50
 export const PCT_MAX = 200
 export const PCT_STEP = 10
@@ -57,6 +60,7 @@ interface WindowsState {
   retarget: (conversationId: string) => void
   /** Sets the size stepper (50%-200%), scaling about the top-left corner within the minimum size and the screen. */
   setPct: (key: string, pct: number) => void
+  setOpacity: (key: string, opacity: number) => void
   close: (key: string) => void
   closeAll: () => void
   focus: (key: string) => void
@@ -86,7 +90,7 @@ export const useWindowsStore = create<WindowsState>()((set) => ({
       // Cascade from the top-right so successive windows stack visibly instead of hiding each other.
       const step = s.windows.length % 7
       const pos = clampPosition(vp.w - w - 24 - step * 32, 56 + step * 32, w)
-      const next: FloatingWin = { key, kind, conversationId, ...pos, w, h, z, collapsed: false, follow: !!opts?.follow, pct: 100 }
+      const next: FloatingWin = { key, kind, conversationId, ...pos, w, h, z, collapsed: false, follow: !!opts?.follow, pct: 100, opacity: 100 }
       // Over the cap the oldest (lowest) window makes room.
       const kept =
         s.windows.length >= MAX_WINDOWS
@@ -121,6 +125,11 @@ export const useWindowsStore = create<WindowsState>()((set) => ({
           return { ...w, w: nw, h: nh, x: pos.x, y: Math.max(0, pos.y), pct }
         }),
       }
+    }),
+  setOpacity: (key, value) =>
+    set((s) => {
+      const opacity = Math.min(100, Math.max(OPACITY_MIN, Math.round(value)))
+      return { windows: s.windows.map((w) => (w.key === key ? { ...w, opacity } : w)) }
     }),
   close: (key) => set((s) => ({ windows: s.windows.filter((w) => w.key !== key) })),
   closeAll: () => set({ windows: [] }),
