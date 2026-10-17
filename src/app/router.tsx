@@ -13,7 +13,13 @@ import { ConversationPage, NewChatPage } from '@/pages/ChatPages'
 import { authService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
 
-const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const settingsPage = <K extends string>(name: K) =>
+  lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: (m as unknown as Record<K, React.ComponentType>)[name] })))
+const SettingsLayout = settingsPage('SettingsLayout')
+const ProfileSettings = settingsPage('ProfileSettings')
+const SecuritySettings = settingsPage('SecuritySettings')
+const AppearanceSettings = settingsPage('AppearanceSettings')
+const TextStyleSettingsPage = settingsPage('TextStyleSettingsPage')
 
 /** Restores the session once on first load from the HttpOnly refresh cookie. */
 let restoreStarted = false
@@ -66,9 +72,16 @@ export const routes = [
             path: '/settings',
             element: (
               <Suspense fallback={<FullScreenLoader />}>
-                <SettingsPage />
+                <SettingsLayout />
               </Suspense>
             ),
+            children: [
+              { index: true, element: <Navigate to="profile" replace /> },
+              { path: 'profile', element: <Suspense fallback={null}><ProfileSettings /></Suspense> },
+              { path: 'security', element: <Suspense fallback={null}><SecuritySettings /></Suspense> },
+              { path: 'appearance', element: <Suspense fallback={null}><AppearanceSettings /></Suspense> },
+              { path: 'text-style', element: <Suspense fallback={null}><TextStyleSettingsPage /></Suspense> },
+            ],
           },
         ],
       },

@@ -45,7 +45,7 @@ function UserMessage({
     <div className="animate-in flex flex-col items-end gap-1.5" data-message-id={m.id ?? undefined}>
       <div
         className={cn(
-          'max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-surface-2 px-4 py-2.5 text-[0.9375rem] leading-relaxed',
+          'font-input max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-surface-2 px-4 py-2.5 text-[0.9375rem] leading-relaxed',
           '[overflow-wrap:anywhere]',
           m.status === 'send_failed' && 'ring-1 ring-danger/50',
           m.status === 'sending' && 'opacity-70',
@@ -128,7 +128,7 @@ function AssistantMessage({
           </div>
         </div>
       ) : (
-        <div>
+        <div className="font-response">
           <Suspense fallback={<p className="whitespace-pre-wrap text-[0.9375rem]">{m.content}</p>}>
             {streaming ? (
               <div className="caret">

@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { buildTree, edgePath, familyOf, GRAPH, layoutFamily } from '@/features/conversations/tree'
 import { FloatingWindow } from '@/components/windows/FloatingWindow'
 import { HierarchyGraph } from '@/components/windows/HierarchyGraph'
-import { MAX_WINDOWS, MIN_H, MIN_W, useWindowsStore } from '@/stores/windows.store'
+import { MAX_WINDOWS, MIN_H, MIN_W, textScale, useWindowsStore } from '@/stores/windows.store'
 import type { Conversation } from '@/types/api'
 
 const conv = (id: string, parent: string | null, n: number): Conversation => ({
@@ -228,5 +228,24 @@ describe('following the main conversation and scaling', () => {
     st().setOpacity('hierarchy:a', 0)
     expect(st().windows[0]!.opacity).toBe(30)
     expect((container.firstElementChild as HTMLElement).style.opacity).toBe('1')
+  })
+})
+
+describe('chat text follows window size', () => {
+  it('is 1x at the default chat window size and grows/shrinks with the window', () => {
+    expect(textScale(440, 560)).toBe(1)
+    expect(textScale(880, 1120)).toBe(2)
+    expect(textScale(660, 840)).toBe(1.5)
+    expect(textScale(300, 300)).toBeLessThan(1)
+    expect(textScale(MIN_W, MIN_H)).toBe(0.75)
+    expect(textScale(5000, 5000)).toBe(2)
+  })
+
+  it('publishes the scale on the window so chat text can use it', () => {
+    useWindowsStore.setState({ windows: [], topZ: 1 })
+    useWindowsStore.getState().open('chat', 'a')
+    useWindowsStore.getState().setRect('chat:a', { w: 660, h: 840 })
+    const { container } = render(<FloatingWindow win={useWindowsStore.getState().windows[0]!} title="W">x</FloatingWindow>)
+    expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--win-scale')).toBe('1.5')
   })
 })
