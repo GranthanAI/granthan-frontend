@@ -298,7 +298,8 @@ async function runTurn({ qc, cid, trigger, replaces, onTriggerError }: RunArgs) 
 }
 
 export interface SendOptions {
-  /** Response mode id (null/undefined = Auto: the backend planner decides). */
+  /** Response mode id. undefined/null = not chosen for this message: the user's saved default
+   * applies (or Auto). 'auto' = explicitly Auto. */
   mode?: string | null
   retryOf?: { idempotencyKey: string; tempId: string }
 }
@@ -308,7 +309,8 @@ export function sendMessage(
   cid: string,
   content: string,
   fileIds: string[] = [],
-  toolIds: string[] = [],
+  /** undefined = not chosen (saved default tools apply); [] = explicitly no tools. */
+  toolIds?: string[],
   opts: SendOptions = {},
 ): boolean {
   const { retryOf, mode = null } = opts
@@ -337,7 +339,7 @@ export function sendMessage(
         {
           content,
           file_ids: fileIds.length ? fileIds : undefined,
-          selected_tools: toolIds.length ? toolIds : undefined,
+          selected_tools: toolIds,
           mode: mode ?? undefined,
         },
         idempotencyKey,
@@ -355,7 +357,7 @@ export function sendMessage(
 export function retryPending(qc: QueryClient, cid: string): boolean {
   const p = useChatStore.getState().runs[cid]?.pendingUser
   if (!p || p.status !== 'failed') return false
-  return sendMessage(qc, cid, p.content, p.fileIds, p.toolIds ?? [], {
+  return sendMessage(qc, cid, p.content, p.fileIds, p.toolIds, {
     mode: p.mode ?? null,
     retryOf: { idempotencyKey: p.idempotencyKey, tempId: p.tempId },
   })

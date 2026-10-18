@@ -1,6 +1,6 @@
 import { api, refreshSession } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth.store'
-import type { MessageResult, TokenResponse, User } from '@/types/api'
+import type { DeviceSession, MessageResult, TokenResponse, User } from '@/types/api'
 
 export const authService = {
   register: (body: { email: string; password: string; full_name: string }) =>
@@ -31,7 +31,12 @@ export const authService = {
   changePassword: (body: { old_password: string; new_password: string }) =>
     api.post<MessageResult>('/auth/change-password', body),
 
-  updateProfile: (body: { full_name?: string }) => api.patch<User>('/auth/profile', body),
+  updateProfile: (body: { full_name?: string; avatar_url?: string }) => api.patch<User>('/auth/profile', body),
+  sessions: (signal?: AbortSignal) => api.get<DeviceSession[]>('/auth/sessions', { signal }),
+  revokeSession: (id: string) => api.delete<{ message: string }>(`/auth/sessions/${encodeURIComponent(id)}`),
+  /** Signs out every other device (this browser stays signed in). */
+  revokeOtherSessions: () =>
+    api.delete<{ message: string }>('/auth/sessions', { query: { exclude_current: 'true' } }),
 
   /** Always clears local state, even if the network call fails. */
   async logout(): Promise<void> {

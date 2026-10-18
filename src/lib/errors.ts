@@ -54,6 +54,8 @@ function defaultMessage(kind: ApiErrorKind): string {
       return 'Too many requests. Please wait a moment and try again.'
     case 'validation':
       return 'Some of the information provided is invalid.'
+    case 'conflict':
+      return 'This was changed elsewhere. Reload and try again.'
     default:
       return 'Request failed.'
   }
@@ -82,6 +84,10 @@ export function parseErrorBody(status: number, body: unknown): ApiError {
   if (body && typeof body === 'object') {
     const b = body as Record<string, unknown>
     if (typeof b.detail === 'string') message = b.detail
+    else if (b.detail && typeof b.detail === 'object' && !Array.isArray(b.detail)) {
+      const m = (b.detail as Record<string, unknown>).message
+      if (typeof m === 'string') message = m
+    }
     else if (Array.isArray(b.detail)) {
       for (const d of b.detail as Array<{ loc?: unknown[]; msg?: string }>) {
         const field = Array.isArray(d.loc) ? String(d.loc[d.loc.length - 1]) : ''

@@ -162,7 +162,7 @@ describe('tool picker (discovery from the backend)', () => {
     await userEvent.click(await screen.findByRole('checkbox', { name: /web search/i }))
     await userEvent.type(screen.getByLabelText('Message GranthanAI'), 'latest news')
     await userEvent.click(screen.getByRole('button', { name: 'Send message' }))
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('latest news', [], ['web_search'], null))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('latest news', [], ['web_search'], undefined))
     await waitFor(() => expect(useToolSelectionStore.getState().byKey['c1'] ?? []).toEqual([]))
   })
 
@@ -171,7 +171,7 @@ describe('tool picker (discovery from the backend)', () => {
     const { onSend } = renderComposer()
     await userEvent.type(screen.getByLabelText('Message GranthanAI'), 'hello')
     await userEvent.click(screen.getByRole('button', { name: 'Send message' }))
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('hello', [], [], null))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('hello', [], undefined, undefined))
   })
 })
 
@@ -230,12 +230,12 @@ describe('documents attached earlier stay in context for follow-up questions', (
     await screen.findByRole('button', { name: /stop using handbook.pdf/i })
     await userEvent.type(screen.getByLabelText('Message GranthanAI'), 'what does section 2 say?')
     await userEvent.click(screen.getByRole('button', { name: 'Send message' }))
-    await waitFor(() => expect(onSend).toHaveBeenLastCalledWith('what does section 2 say?', ['doc-1'], [], null))
+    await waitFor(() => expect(onSend).toHaveBeenLastCalledWith('what does section 2 say?', ['doc-1'], undefined, undefined))
 
     await userEvent.click(screen.getByRole('button', { name: /stop using handbook.pdf/i }))
     await userEvent.type(screen.getByLabelText('Message GranthanAI'), 'general question')
     await userEvent.click(screen.getByRole('button', { name: 'Send message' }))
-    await waitFor(() => expect(onSend).toHaveBeenLastCalledWith('general question', [], [], null))
+    await waitFor(() => expect(onSend).toHaveBeenLastCalledWith('general question', [], undefined, undefined))
   })
 
   it('never sends a document that is not READY or no longer exists', async () => {
@@ -246,7 +246,7 @@ describe('documents attached earlier stay in context for follow-up questions', (
     expect(await screen.findByText('No longer available')).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('Message GranthanAI'), 'summarise it')
     await userEvent.click(screen.getByRole('button', { name: 'Send message' }))
-    await waitFor(() => expect(onSend).toHaveBeenCalledWith('summarise it', [], [], null))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('summarise it', [], undefined, undefined))
   })
 })
 

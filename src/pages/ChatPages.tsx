@@ -36,7 +36,7 @@ export function NewChatPage() {
   const qc = useQueryClient()
   const create = useCreateConversation()
 
-  const onSend = async (text: string, fileIds: string[], toolIds: string[], mode: string | null) => {
+  const onSend = async (text: string, fileIds: string[], toolIds: string[] | undefined, mode: string | undefined) => {
     if (create.isPending) return false
     try {
       const c = await create.mutateAsync({ title: truncate(text, 60) })
@@ -62,7 +62,7 @@ export function NewChatPage() {
             <li key={ex.text}>
               <button
                 disabled={create.isPending}
-                onClick={() => void onSend(ex.text, [], [], null)}
+                onClick={() => void onSend(ex.text, [], undefined, undefined)}
                 className="flex h-full w-full items-start gap-2.5 rounded-xl border border-line bg-raised p-3.5 text-left text-sm text-ink-2 transition-colors hover:border-accent/50 hover:bg-surface disabled:opacity-60"
               >
                 <span className="mt-0.5 text-accent">{ex.icon}</span>

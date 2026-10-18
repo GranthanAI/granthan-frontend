@@ -188,3 +188,72 @@ export interface ToolListResponse {
   /** Optional: absent from older backends (then no mode selector is shown). */
   modes?: ModeDescriptor[]
 }
+
+/* ---------------- Settings ---------------- */
+
+export type AnswerLength = 'concise' | 'balanced' | 'detailed'
+export type Tone = 'professional' | 'friendly' | 'simple'
+export type CitationPreference = 'show' | 'hide'
+export type DocumentContextPreference = 'conversation' | 'attached_only'
+
+/** Server-persisted AI / application preferences (conversation-service). */
+export interface Preferences {
+  /** null = Auto (the planner decides). */
+  default_mode: string | null
+  default_tools: string[]
+  answer_length: AnswerLength
+  tone: Tone
+  /** 'auto' = answer in the language of the question. */
+  language: string
+  personal_instructions: string
+  citations: CitationPreference
+  document_context: DocumentContextPreference
+  /** Optimistic-concurrency version: send it back on PATCH. 0 = never saved. */
+  version: number
+  updated_at: string | null
+  options: PreferenceOptions
+}
+
+export interface PreferenceOptions {
+  answer_length: AnswerLength[]
+  tone: Tone[]
+  citations: CitationPreference[]
+  document_context: DocumentContextPreference[]
+  languages: { code: string; name: string }[]
+  personal_instructions_max: number
+}
+
+export type PreferencesPatch = Partial<
+  Pick<Preferences, 'default_mode' | 'default_tools' | 'answer_length' | 'tone' | 'language' | 'personal_instructions' | 'citations' | 'document_context'>
+> & { version?: number }
+
+export interface MemorySettings {
+  memory_enabled: boolean
+}
+
+export interface MemoryFact {
+  id: string
+  category: string
+  statement: string
+  importance: number
+  created_at: string | null
+  conversation_id: string | null
+}
+
+export interface MemoryFactList {
+  items: MemoryFact[]
+  memory_enabled: boolean
+}
+
+export interface DeviceSession {
+  id: string
+  device: string | null
+  browser: string | null
+  os: string | null
+  ip_address: string | null
+  created_at: string
+  last_seen: string
+  expires_at: string
+  /** The session of this browser. */
+  is_current?: boolean
+}

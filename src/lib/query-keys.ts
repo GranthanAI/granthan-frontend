@@ -6,6 +6,10 @@ export const qk = {
   ancestors: (id: string) => ['ancestors', id] as const,
   files: (conversationId?: string) => ['files', conversationId ?? 'all'] as const,
   tools: ['tools'] as const,
+  preferences: ['preferences'] as const,
+  memorySettings: ['memory', 'settings'] as const,
+  memoryFacts: ['memory', 'facts'] as const,
+  sessions: ['sessions'] as const,
   file: (id: string) => ['file', id] as const,
   fileStatus: (id: string) => ['file-status', id] as const,
 }

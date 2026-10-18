@@ -6,6 +6,7 @@ import { cn, formatBytes } from '@/lib/utils'
 import { useAttachments, type Attachment } from '@/features/uploads/useAttachments'
 import { useDocumentContext } from '@/features/uploads/useDocumentContext'
 import { useToolSelection } from '@/features/tools/useTools'
+import { usePreferences } from '@/features/preferences/usePreferences'
 import { ToolPicker } from './ToolPicker'
 import { useDraftStore } from '@/stores/draft.store'
 import { useQuoteStore } from '@/stores/quote.store'
@@ -25,7 +26,8 @@ interface Props {
   /** Return true if the message was accepted (the composer then clears itself). */
   /** Documents attached earlier in this conversation (ids), offered as context for follow-ups. */
   contextDocumentIds?: string[]
-  onSend: (text: string, fileIds: string[], toolIds: string[], mode: string | null) => boolean | Promise<boolean>
+  /** toolIds / mode undefined = not chosen for this message (the user's saved defaults apply). */
+  onSend: (text: string, fileIds: string[], toolIds: string[] | undefined, mode: string | undefined) => boolean | Promise<boolean>
 }
 
 const NO_IDS: string[] = []
@@ -38,7 +40,9 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
   const quote = useQuoteStore((s) => s.byKey[draftKey] ?? null)
   const clearQuote = useQuoteStore((s) => s.clear)
   const tools = useToolSelection(draftKey)
-  const docs = useDocumentContext(contextDocumentIds)
+  // Settings → AI preferences → Document context: 'attached_only' keeps earlier documents out of follow-ups.
+  const documentContext = usePreferences().data?.document_context ?? 'conversation'
+  const docs = useDocumentContext(documentContext === 'attached_only' ? NO_IDS : contextDocumentIds)
   const ref = useRef<HTMLTextAreaElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -72,7 +76,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
       // New attachments plus still-usable documents from earlier in the conversation (no duplicates).
       const fileIds = [...new Set([...docs.includedIds, ...att.readyIds])]
       // The selected excerpt (if any) is sent with the prompt as a quote block.
-      const ok = await onSend(formatQuoted(quote, text), fileIds, tools.selected, tools.mode)
+      const ok = await onSend(formatQuoted(quote, text), fileIds, tools.explicitTools, tools.explicitMode)
       if (ok) {
         clearDraft(draftKey)
         clearQuote(draftKey)
@@ -147,7 +151,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
           <ul className="flex flex-wrap gap-2 px-3 pt-3" aria-label="Message context">
             {tools.mode && (
               <li className="flex items-center gap-1.5 rounded-xl border border-accent/40 bg-accent-soft px-2.5 py-1 text-xs">
-                <span className="text-ink-3">Mode</span>
+                <span className="text-ink-3">{tools.modeIsDefault ? 'Default mode' : 'Mode'}</span>
                 <span className="font-medium">{tools.modeNameOf(tools.mode)}</span>
                 <button onClick={() => tools.setMode(null)} aria-label={`Clear mode ${tools.modeNameOf(tools.mode)}`} className="rounded p-0.5 text-ink-3 hover:text-ink">
                   <X className="size-3.5" />
@@ -158,6 +162,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
               <li key={`tool-${id}`} className="flex items-center gap-1.5 rounded-xl border border-accent/40 bg-accent-soft px-2.5 py-1 text-xs">
                 <Wrench className="size-3.5 text-accent" aria-hidden />
                 <span className="font-medium">{tools.nameOf(id)}</span>
+                {tools.toolsAreDefault && <span className="text-ink-3">default</span>}
                 <button onClick={() => tools.remove(id)} aria-label={`Remove tool ${tools.nameOf(id)}`} className="rounded p-0.5 text-ink-3 hover:text-ink">
                   <X className="size-3.5" />
                 </button>

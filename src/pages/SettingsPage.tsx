@@ -3,7 +3,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { NavLink, Outlet } from 'react-router-dom'
-import { KeyRound, Monitor, Moon, Palette, Sun, Type, UserRound } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { qk } from '@/lib/query-keys'
+import { Brain, FileText, KeyRound, Monitor, Moon, Palette, Sparkles, Sun, Type, UserRound } from 'lucide-react'
 import { Alert, Button, TextField } from '@/components/ui/primitives'
 import { toast } from '@/components/ui/overlays'
 import { toApiError } from '@/lib/errors'
@@ -13,8 +15,18 @@ import { useAuthStore } from '@/stores/auth.store'
 import { TextStyleSettings } from '@/components/settings/TextStyleSettings'
 import { useUiStore, type Theme } from '@/stores/ui.store'
 import { cn } from '@/lib/utils'
+import { SessionsSettings } from '@/components/settings/SessionsSettings'
+import { AiPreferencesSettings } from '@/components/settings/AiPreferencesSettings'
+import { MemorySettingsPage } from '@/components/settings/MemorySettingsPage'
+import { DocumentsSettings } from '@/components/settings/DocumentsSettings'
+import { Toggle } from '@/components/settings/controls'
 
-const profileSchema = z.object({ full_name: z.string().trim().min(2, 'At least 2 characters').max(100) })
+export { AiPreferencesSettings, MemorySettingsPage, DocumentsSettings }
+
+const profileSchema = z.object({
+  full_name: z.string().trim().min(2, 'At least 2 characters').max(100),
+  avatar_url: z.string().trim().refine((v) => v === '' || /^https:\/\/[^\s/]+\S*$/.test(v), 'Must be an https:// link'),
+})
 const passwordForm = z
   .object({ old_password: z.string().min(1, 'Required'), new_password: passwordSchema, confirm: z.string() })
   .refine((v) => v.new_password === v.confirm, { path: ['confirm'], message: 'Passwords do not match' })
@@ -22,6 +34,9 @@ const passwordForm = z
 /** One entry per settings domain; each has its own page under /settings. */
 export const SETTINGS_PAGES = [
   { path: 'profile', label: 'Profile', icon: UserRound },
+  { path: 'ai', label: 'AI preferences', icon: Sparkles },
+  { path: 'memory', label: 'Memory', icon: Brain },
+  { path: 'documents', label: 'Documents', icon: FileText },
   { path: 'security', label: 'Security', icon: KeyRound },
   { path: 'appearance', label: 'Appearance', icon: Palette },
   { path: 'text-style', label: 'Text style', icon: Type },
@@ -73,9 +88,9 @@ export function ProfileSettings() {
   const user = useAuthStore((s) => s.user)
   const setUser = useAuthStore((s) => s.setUser)
   const [error, setError] = useState('')
-  const form = useForm<{ full_name: string }>({
+  const form = useForm<z.infer<typeof profileSchema>>({
     resolver: zodResolver(profileSchema),
-    defaultValues: { full_name: user?.full_name ?? '' },
+    defaultValues: { full_name: user?.full_name ?? '', avatar_url: user?.avatar_url ?? '' },
   })
 
   return (
@@ -86,7 +101,7 @@ export function ProfileSettings() {
         onSubmit={form.handleSubmit(async (v) => {
           setError('')
           try {
-            setUser(await authService.updateProfile({ full_name: v.full_name }))
+            setUser(await authService.updateProfile({ full_name: v.full_name, avatar_url: v.avatar_url }))
             toast('Profile updated', 'success')
           } catch (e) {
             setError(toApiError(e).message)
@@ -96,6 +111,11 @@ export function ProfileSettings() {
         {error && <Alert tone="error">{error}</Alert>}
         <TextField label="Email" value={user?.email ?? ''} readOnly disabled hint="Email cannot be changed." />
         <TextField label="Full name" error={form.formState.errors.full_name?.message} {...form.register('full_name')} />
+        <TextField label="Avatar link" placeholder="https://…" hint="Link to an image (https only). Leave empty to remove." error={form.formState.errors.avatar_url?.message} {...form.register('avatar_url')} />
+        <p className="text-xs text-ink-3">
+          Account: {user?.status?.toLowerCase() ?? 'unknown'} · email {user?.is_email_verified ? 'verified' : 'not verified'}
+          {user?.created_at ? ` · member since ${new Date(user.created_at).toLocaleDateString()}` : ''}
+        </p>
         <Button type="submit" variant="primary" loading={form.formState.isSubmitting}>
           Save changes
         </Button>
@@ -105,6 +125,7 @@ export function ProfileSettings() {
 }
 
 export function SecuritySettings() {
+  const qc = useQueryClient()
   const [error, setError] = useState('')
   const form = useForm<z.infer<typeof passwordForm>>({
     resolver: zodResolver(passwordForm),
@@ -112,16 +133,23 @@ export function SecuritySettings() {
   })
 
   return (
-    <Section title="Change password">
+    <>
+    <Section title="Change password" description="Changing your password signs out your other devices.">
       <form
         noValidate
         className="space-y-4"
         onSubmit={form.handleSubmit(async (v) => {
           setError('')
           try {
-            await authService.changePassword({ old_password: v.old_password, new_password: v.new_password })
+            const r = (await authService.changePassword({ old_password: v.old_password, new_password: v.new_password })) as { other_sessions_signed_out?: number }
             form.reset()
-            toast('Password changed', 'success')
+            void qc.invalidateQueries({ queryKey: qk.sessions })
+            toast(
+              r.other_sessions_signed_out
+                ? `Password changed. ${r.other_sessions_signed_out} other device(s) will be signed out.`
+                : 'Password changed',
+              'success',
+            )
           } catch (e) {
             setError(toApiError(e).message)
           }
@@ -136,11 +164,13 @@ export function SecuritySettings() {
         </Button>
       </form>
     </Section>
+    <SessionsSettings />
+    </>
   )
 }
 
 export function AppearanceSettings() {
-  const { theme, setTheme } = useUiStore()
+  const { theme, setTheme, sidebarCollapsed, toggleSidebar } = useUiStore()
   const themes: { t: Theme; label: string; icon: ReactNode }[] = [
     { t: 'light', label: 'Light', icon: <Sun className="size-4" /> },
     { t: 'dark', label: 'Dark', icon: <Moon className="size-4" /> },
@@ -164,6 +194,14 @@ export function AppearanceSettings() {
             {t.icon} {t.label}
           </button>
         ))}
+      </div>
+      <div className="mt-5">
+        <Toggle
+          label="Collapse the sidebar"
+          description="Start with the conversation list collapsed on this browser."
+          checked={sidebarCollapsed}
+          onChange={() => toggleSidebar()}
+        />
       </div>
     </Section>
   )
