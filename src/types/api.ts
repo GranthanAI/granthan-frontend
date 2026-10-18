@@ -245,6 +245,23 @@ export interface MemoryFactList {
   memory_enabled: boolean
 }
 
+/** What a branch inherits from its ancestors (GET /conversations/{id}/context). */
+export interface InheritedDocument {
+  document_id: string
+  source_conversation_id: string
+  source_title: string
+  source_message_id: string
+}
+
+export interface BranchContext {
+  conversation_id: string
+  branch_message_id: string | null
+  lineage: { conversation_id: string; title: string; upto_message_id: string | null }[]
+  /** Why the ancestor chain ended early (missing / deleted / inaccessible ancestor, cycle, depth). */
+  truncated: string | null
+  documents: InheritedDocument[]
+}
+
 export interface DeviceSession {
   id: string
   device: string | null

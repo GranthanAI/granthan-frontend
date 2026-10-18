@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Composer } from '@/components/chat/Composer'
 import { cancelRun, retryPending, sendMessage } from '@/features/messages/chat-controller'
-import { useModeSelectionStore, useToolSelectionStore } from '@/features/tools/useTools'
+import { adoptNewChatMode, useModeSelectionStore, useToolSelectionStore } from '@/features/tools/useTools'
 import { documentIdsFromHistory } from '@/features/uploads/useDocumentContext'
 import { useAuthStore } from '@/stores/auth.store'
 import { useChatStore } from '@/stores/chat.store'
@@ -279,7 +279,7 @@ describe('mode selector (modes come from the backend)', () => {
     expect(screen.queryByRole('radiogroup', { name: 'Mode' })).not.toBeInTheDocument()
   })
 
-  it('sends the chosen mode together with the tools, then resets to Auto', async () => {
+  it('sends the chosen mode with the tools; the mode stays for the next message, the tools do not', async () => {
     withModes()
     const { onSend } = renderComposer()
     await openTools()
@@ -289,7 +289,18 @@ describe('mode selector (modes come from the backend)', () => {
     await userEvent.type(screen.getByLabelText('Message GranthanAI'), 'compare kafka and pulsar')
     await userEvent.click(screen.getByRole('button', { name: 'Send message' }))
     await waitFor(() => expect(onSend).toHaveBeenCalledWith('compare kafka and pulsar', [], ['web_search'], 'deep_research'))
-    await waitFor(() => expect(useModeSelectionStore.getState().modeByKey['c1']).toBeUndefined())
+    await waitFor(() => expect(useToolSelectionStore.getState().byKey['c1']).toBeUndefined())
+    expect(useModeSelectionStore.getState().modeByKey['c1']).toBe('deep_research')
+    // second message: same mode, no tools chosen
+    await userEvent.type(screen.getByLabelText('Message GranthanAI'), 'and rabbitmq?')
+    await userEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(onSend).toHaveBeenLastCalledWith('and rabbitmq?', [], undefined, 'deep_research'))
+  })
+
+  it('the new-chat mode moves to the created conversation', () => {
+    useModeSelectionStore.getState().setMode('new', 'tutor')
+    adoptNewChatMode('new', 'c9')
+    expect(useModeSelectionStore.getState().modeByKey).toEqual({ c9: 'tutor' })
   })
 
   it('lets the user clear the mode back to Auto', async () => {
@@ -317,5 +328,34 @@ describe('mode selector (modes come from the backend)', () => {
     sendMessage(new QueryClient(), 'c1', 'q2')
     await waitFor(() => expect(posts).toHaveLength(2))
     expect(posts[1]).not.toHaveProperty('mode')
+  })
+})
+
+describe('documents inherited from ancestor branches', () => {
+  it('shows where an inherited document came from, sends it, and lets the user exclude it', async () => {
+    mockApi({ files: { d1: file('d1', 'READY', 'paper.pdf') } })
+    const { onSend } = renderComposer(undefined, { contextDocumentIds: ['d1'], inheritedFrom: { d1: 'Branch A' } })
+    expect(await screen.findByText('from Branch A')).toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('Message GranthanAI'), 'what does section 2 say?')
+    await userEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('what does section 2 say?', ['d1'], undefined, undefined))
+  })
+
+  it('an excluded inherited document is not sent', async () => {
+    mockApi({ files: { d1: file('d1', 'READY', 'paper.pdf') } })
+    const { onSend } = renderComposer(undefined, { contextDocumentIds: ['d1'], inheritedFrom: { d1: 'Branch A' } })
+    await userEvent.click(await screen.findByRole('button', { name: /stop using paper.pdf as context/i }))
+    await userEvent.type(screen.getByLabelText('Message GranthanAI'), 'general question')
+    await userEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('general question', [], undefined, undefined))
+  })
+
+  it('a deleted or inaccessible inherited document is never sent', async () => {
+    mockApi({ files: { d1: 404 } })
+    const { onSend } = renderComposer(undefined, { contextDocumentIds: ['d1'], inheritedFrom: { d1: 'Branch A' } })
+    expect(await screen.findByText('No longer available')).toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('Message GranthanAI'), 'hello there')
+    await userEvent.click(screen.getByRole('button', { name: 'Send message' }))
+    await waitFor(() => expect(onSend).toHaveBeenCalledWith('hello there', [], undefined, undefined))
   })
 })

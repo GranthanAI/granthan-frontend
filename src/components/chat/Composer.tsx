@@ -26,13 +26,15 @@ interface Props {
   /** Return true if the message was accepted (the composer then clears itself). */
   /** Documents attached earlier in this conversation (ids), offered as context for follow-ups. */
   contextDocumentIds?: string[]
+  /** document id -> title of the ancestor conversation it was inherited from */
+  inheritedFrom?: Record<string, string>
   /** toolIds / mode undefined = not chosen for this message (the user's saved defaults apply). */
   onSend: (text: string, fileIds: string[], toolIds: string[] | undefined, mode: string | undefined) => boolean | Promise<boolean>
 }
 
 const NO_IDS: string[] = []
 
-export function Composer({ conversationId, draftKey, busy, placeholder, autoFocus, inputId = 'composer-input', contextDocumentIds = NO_IDS, onSend }: Props) {
+export function Composer({ conversationId, draftKey, busy, placeholder, autoFocus, inputId = 'composer-input', contextDocumentIds = NO_IDS, inheritedFrom, onSend }: Props) {
   const draft = useDraftStore((s) => s.drafts[draftKey] ?? '')
   const setDraft = useDraftStore((s) => s.set)
   const clearDraft = useDraftStore((s) => s.clear)
@@ -42,7 +44,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
   const tools = useToolSelection(draftKey)
   // Settings → AI preferences → Document context: 'attached_only' keeps earlier documents out of follow-ups.
   const documentContext = usePreferences().data?.document_context ?? 'conversation'
-  const docs = useDocumentContext(documentContext === 'attached_only' ? NO_IDS : contextDocumentIds)
+  const docs = useDocumentContext(documentContext === 'attached_only' ? NO_IDS : contextDocumentIds, inheritedFrom)
   const ref = useRef<HTMLTextAreaElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
@@ -177,7 +179,8 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
                 )}
               >
                 <FileText className="size-3.5 shrink-0 text-ink-3" aria-hidden />
-                <span className="max-w-40 truncate font-medium" title={d.name}>{d.name}</span>
+                <span className="max-w-40 truncate font-medium" title={d.inheritedFrom ? `${d.name} (inherited from ${d.inheritedFrom})` : d.name}>{d.name}</span>
+                {d.inheritedFrom && <span className="max-w-28 truncate text-ink-3">from {d.inheritedFrom}</span>}
                 {d.usable ? (
                   <button
                     onClick={() => docs.toggle(d.id)}

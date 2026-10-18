@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import { toast } from '@/components/ui/overlays'
 import { qk } from '@/lib/query-keys'
 import { toolService } from '@/services/tool.service'
@@ -25,22 +26,40 @@ export const useToolSelectionStore = create<SelectionState>((set) => ({
     }),
 }))
 
-/** Explicit response mode per composer. Absent = not chosen for this message (the user's saved
- * default applies, or Auto); 'auto' = explicitly Auto for this message. */
+/**
+ * Response mode chosen for a CONVERSATION (key = conversation id; the new-chat composer uses its own
+ * key and hands the choice to the conversation it creates). It stays active for every following
+ * message, survives reloads (this browser), and is only changed by the user: picking Auto removes
+ * the override so the saved default (Settings → AI preferences) applies again.
+ * Tools are different: they are per-message "must run" overrides and are cleared after sending.
+ */
 interface ModeState {
   modeByKey: Record<string, string>
   setMode: (key: string, id: string | null) => void
 }
 
-export const useModeSelectionStore = create<ModeState>((set) => ({
-  modeByKey: {},
-  setMode: (key, id) =>
-    set((s) => {
-      const { [key]: _drop, ...rest } = s.modeByKey
-      void _drop
-      return { modeByKey: id ? { ...rest, [key]: id } : rest }
+export const useModeSelectionStore = create<ModeState>()(
+  persist(
+    (set) => ({
+      modeByKey: {},
+      setMode: (key, id) =>
+        set((s) => {
+          const { [key]: _drop, ...rest } = s.modeByKey
+          void _drop
+          return { modeByKey: id ? { ...rest, [key]: id } : rest }
+        }),
     }),
-}))
+    { name: 'granthan-conversation-mode', partialize: (s) => ({ modeByKey: s.modeByKey }) },
+  ),
+)
+
+/** Moves the mode chosen in the new-chat composer to the conversation that was just created. */
+export function adoptNewChatMode(newKey: string, conversationId: string) {
+  const { modeByKey, setMode } = useModeSelectionStore.getState()
+  const mode = modeByKey[newKey]
+  if (mode) setMode(conversationId, mode)
+  setMode(newKey, null)
+}
 
 const NONE: string[] = []
 
@@ -88,7 +107,7 @@ export function useToolSelection(draftKey: string) {
   const toolsTouched = explicitTools !== undefined
   const selected = toolsTouched ? explicitTools : defaultTools.length ? defaultTools : NONE
   const modeTouched = storedMode !== undefined
-  const mode = modeTouched ? (storedMode === 'auto' ? null : storedMode) : defaultMode
+  const mode = modeTouched ? storedMode : defaultMode
 
   useEffect(() => {
     if (!query.data || !explicitTools || explicitTools.length === 0) return
@@ -103,7 +122,7 @@ export function useToolSelection(draftKey: string) {
 
   // A mode the backend no longer offers (turned off since the list was loaded) falls back to Auto.
   useEffect(() => {
-    if (!query.data || !storedMode || storedMode === 'auto') return
+    if (!query.data || !storedMode) return
     if (!(query.data.modes ?? []).some((m) => m.id === storedMode)) {
       toast(`Mode no longer available: ${storedMode}. Using Auto.`, 'info')
       setStoredMode(draftKey, null)
@@ -126,19 +145,12 @@ export function useToolSelection(draftKey: string) {
     /** True while the shown tools / mode are the saved defaults (not chosen for this message). */
     toolsAreDefault: !toolsTouched && selected.length > 0,
     modeIsDefault: !modeTouched && mode !== null,
-    /** Choose a mode for this message; null = Auto. */
-    setMode: (id: string | null) => {
-      if (id) setStoredMode(draftKey, id)
-      // Auto when a saved default mode exists must be sent explicitly, otherwise the default applies.
-      else setStoredMode(draftKey, defaultMode ? 'auto' : null)
-    },
+    /** Choose the mode for this conversation; null = Auto (removes the override: saved default applies). */
+    setMode: (id: string | null) => setStoredMode(draftKey, id),
     modeNameOf: (id: string) => modes.find((m) => m.id === id)?.name ?? id,
     remove: (id: string) => setSelected(draftKey, selected.filter((x) => x !== id)),
-    /** Back to the saved defaults (used after sending). */
-    clear: () => {
-      clear(draftKey)
-      setStoredMode(draftKey, null)
-    },
+    /** After sending: per-message tool overrides are cleared; the conversation's mode stays. */
+    clear: () => clear(draftKey),
     nameOf: (id: string) => tools.find((t) => t.id === id)?.name ?? id,
     /** What to send: undefined = not chosen (backend applies saved defaults). */
     explicitTools: toolsTouched ? explicitTools : undefined,

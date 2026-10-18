@@ -23,6 +23,8 @@ import { ApiError, errorMessage } from '@/lib/errors'
 import { truncate } from '@/lib/utils'
 import { EMPTY_RUN, isBusy, useChatStore } from '@/stores/chat.store'
 import { NEW_CHAT_DRAFT } from '@/stores/draft.store'
+import { adoptNewChatMode } from '@/features/tools/useTools'
+import { useBranchContext } from '@/features/conversations/useBranchContext'
 
 const EXAMPLES = [
   { icon: <Lightbulb className="size-4" />, text: 'Explain how Kafka partitions relate to consumer groups' },
@@ -40,6 +42,7 @@ export function NewChatPage() {
     if (create.isPending) return false
     try {
       const c = await create.mutateAsync({ title: truncate(text, 60) })
+      adoptNewChatMode(NEW_CHAT_DRAFT, c.conversation_id)
       sendMessage(qc, c.conversation_id, text, fileIds, toolIds, { mode })
       navigate(`/c/${c.conversation_id}`)
       return true
@@ -98,7 +101,12 @@ export function ConversationView({ id, embedded = false }: { id: string; embedde
   const citations = useChatStore((s) => s.citations)
   const busy = isBusy(run)
   const selection = useSelectionBranch(id)
-  const contextDocumentIds = useMemo(() => documentIdsFromHistory(msgs.messages), [msgs.messages])
+  const inherited = useBranchContext(id)
+  // This conversation's own documents first, then those inherited from its ancestors (no duplicates).
+  const contextDocumentIds = useMemo(
+    () => [...new Set([...documentIdsFromHistory(msgs.messages), ...inherited.documents.map((d) => d.document_id)])],
+    [msgs.messages, inherited.documents],
+  )
 
   const display = useMemo(() => buildDisplay(msgs.messages, run, citations), [msgs.messages, run, citations])
 
@@ -200,6 +208,7 @@ export function ConversationView({ id, embedded = false }: { id: string; embedde
         autoFocus={!embedded}
         inputId={embedded ? `composer-input-${id}` : undefined}
         contextDocumentIds={contextDocumentIds}
+        inheritedFrom={inherited.sources}
         onSend={(text, fileIds, toolIds, mode) => sendMessage(qc, id, text, fileIds, toolIds, { mode })}
       />
     </div>

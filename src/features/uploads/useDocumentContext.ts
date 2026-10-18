@@ -12,6 +12,8 @@ export interface ContextDocument {
   usable: boolean
   included: boolean
   reason?: string
+  /** Title of the ancestor conversation this document was inherited from (absent = attached here). */
+  inheritedFrom?: string
 }
 
 const MAX_CONTEXT_DOCS = 5
@@ -41,7 +43,7 @@ export function allDocumentIds(messages: ApiMessage[]): string[] {
  * like "what does section 2 say?" carries no file_ids of its own). They are shown to the user, can be
  * switched off, and are only sent while the backend still reports them READY.
  */
-export function useDocumentContext(historyIds: string[]) {
+export function useDocumentContext(historyIds: string[], inheritedFrom: Record<string, string> = {}) {
   const [excluded, setExcluded] = useState<Set<string>>(() => new Set())
   const results = useQueries({
     queries: historyIds.map((id) => ({
@@ -72,8 +74,11 @@ export function useDocumentContext(historyIds: string[]) {
     }
   })
 
+  // Provenance: documents that came from an ancestor conversation say where from.
+  const documentsWithSource = documents.map((d) => (inheritedFrom[d.id] ? { ...d, inheritedFrom: inheritedFrom[d.id] } : d))
+
   return {
-    documents,
+    documents: documentsWithSource,
     includedIds: documents.filter((d) => d.included).map((d) => d.id),
     toggle: (id: string) =>
       setExcluded((cur) => {

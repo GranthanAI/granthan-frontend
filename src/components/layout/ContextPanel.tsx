@@ -6,6 +6,7 @@ import { Alert, Button, EmptyState, Skeleton, Spinner } from '@/components/ui/pr
 import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { useDialogs } from '@/features/conversations/dialogs'
 import { useLineage } from '@/features/conversations/hooks'
+import { useBranchContext } from '@/features/conversations/useBranchContext'
 import { useMessages } from '@/features/messages/hooks'
 import { allDocumentIds } from '@/features/uploads/useDocumentContext'
 import { errorMessage } from '@/lib/errors'
@@ -161,7 +162,11 @@ function FilesTab({ conversationId }: { conversationId: string }) {
   // has no conversation_id for them. The messages that carry them (file_ids) are the reliable link, so
   // those documents are merged in alongside the ones listed by conversation_id.
   const msgs = useMessages(conversationId)
-  const attachedIds = useMemo(() => allDocumentIds(msgs.messages), [msgs.messages])
+  const inherited = useBranchContext(conversationId)
+  const attachedIds = useMemo(
+    () => [...new Set([...allDocumentIds(msgs.messages), ...inherited.documents.map((d) => d.document_id)])],
+    [msgs.messages, inherited.documents],
+  )
   const listedIds = new Set((files.data?.items ?? []).map((f) => f.document_id))
   const extraIds = attachedIds.filter((id) => !listedIds.has(id))
   const extras = useQueries({
@@ -230,6 +235,9 @@ function FilesTab({ conversationId }: { conversationId: string }) {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium" title={f.filename}>{f.filename}</div>
                 <FileStatusBadge status={f.status} />
+                {inherited.sources[f.document_id] && (
+                  <div className="mt-0.5 text-xs text-ink-3">Inherited from {inherited.sources[f.document_id]}</div>
+                )}
               </div>
             </div>
             <div className="mt-2 flex gap-1">
@@ -241,9 +249,11 @@ function FilesTab({ conversationId }: { conversationId: string }) {
                   <RefreshCw className="size-3.5" /> Retry
                 </Button>
               )}
-              <Button size="sm" variant="ghost" className="text-danger" onClick={() => setToDelete(f)}>
-                <Trash2 className="size-3.5" /> Delete
-              </Button>
+              {!inherited.sources[f.document_id] && (
+                <Button size="sm" variant="ghost" className="text-danger" onClick={() => setToDelete(f)}>
+                  <Trash2 className="size-3.5" /> Delete
+                </Button>
+              )}
             </div>
           </li>
         ))}

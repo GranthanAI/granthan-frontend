@@ -113,7 +113,7 @@ export function ConversationDialogs() {
     return (
       <TitleDialog
         title="Start a branch"
-        description="Creates a new conversation linked to this one in your history tree. The parent's messages and memory are not copied; the branch starts with an empty context."
+        description="Creates a new conversation linked to this one in your history tree. The branch continues from the parent as it is now: earlier messages and attached documents are inherited, while anything added to the parent later is not."
         initial={`Branch of ${truncate(c.title, 60)}`}
         submitLabel="Create branch"
         pending={create.isPending}
