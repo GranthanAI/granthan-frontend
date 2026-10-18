@@ -151,7 +151,7 @@ export function AiPreferencesSettings() {
                       blocked && 'cursor-not-allowed opacity-50',
                     )}
                   >
-                    <input type="checkbox" checked={on} disabled={blocked} onChange={() => toggleTool(t.id)} />
+                    <input type="checkbox" className="size-4 shrink-0 accent-accent" checked={on} disabled={blocked} onChange={() => toggleTool(t.id)} />
                     {t.name}
                   </label>
                 )
