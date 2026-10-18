@@ -253,7 +253,15 @@ body {
   padding: 0.5em 0.8em;
   border-bottom: 1px solid var(--line);
   text-align: left;
+  vertical-align: top;
+  /* Break between words, never inside them; columns keep a readable minimum width and the table scrolls
+     sideways (inside .table-wrap) instead of squeezing a column until words split. */
+  min-width: 8.5rem;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: manual;
 }
+
 .prose-chat th {
   background: var(--surface);
   font-weight: 600;

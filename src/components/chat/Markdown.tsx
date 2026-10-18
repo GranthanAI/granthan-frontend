@@ -43,6 +43,43 @@ function CodeBlock({ children }: { children?: ReactNode }) {
   )
 }
 
+interface MdNode {
+  type: string
+  value?: string
+  children?: MdNode[]
+}
+
+const BR = /<br\s*\/?>/gi
+
+/**
+ * Models often write `<br>` to get a line break inside a table cell (Markdown tables cannot contain real newlines).
+ * Raw HTML stays disabled (security), so without this the tag is printed literally. This converts only that tag into
+ * a real line break node; every other piece of HTML is still shown as text and never executed.
+ */
+export function remarkBreakTags() {
+  const walk = (node: MdNode) => {
+    if (!node.children) return
+    const out: MdNode[] = []
+    for (const child of node.children) {
+      if (child.type === 'html' && /^<br\s*\/?>$/i.test((child.value ?? '').trim())) {
+        out.push({ type: 'break' })
+      } else if (child.type === 'text' && child.value && BR.test(child.value)) {
+        BR.lastIndex = 0
+        child.value.split(BR).forEach((part, i, all) => {
+          if (part) out.push({ type: 'text', value: part })
+          if (i < all.length - 1) out.push({ type: 'break' })
+        })
+      } else {
+        BR.lastIndex = 0
+        walk(child)
+        out.push(child)
+      }
+    }
+    node.children = out
+  }
+  return (tree: MdNode) => walk(tree)
+}
+
 const components: Components = {
   pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
   a: ({ href, children }) => (
@@ -65,7 +102,7 @@ function MarkdownImpl({ content }: { content: string }) {
   return (
     <div className="prose-chat">
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={[remarkGfm, remarkMath, remarkBreakTags]}
         rehypePlugins={[rehypeKatex, [rehypeHighlight, { detect: false, ignoreMissing: true }]]}
         components={components}
       >
