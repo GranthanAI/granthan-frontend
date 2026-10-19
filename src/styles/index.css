@@ -91,6 +91,12 @@ body {
   outline-offset: 2px;
   border-radius: 6px;
 }
+/* This rule is unlayered, so it beats Tailwind's (layered) `outline-none`. Controls that draw their own focus
+   indicator on a surrounding container (e.g. the chat composer) opt out here. */
+[data-own-focus-ring]:focus-visible {
+  outline: none;
+  border-radius: inherit;
+}
 
 ::selection {
   background: var(--accent-soft);
