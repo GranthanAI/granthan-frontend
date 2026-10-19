@@ -69,7 +69,7 @@ function renderComposer(onSend = vi.fn(async () => true), props: Partial<React.C
   return { onSend, qc }
 }
 
-const openTools = async () => userEvent.click(screen.getByRole('button', { name: /^tools/i }))
+const openTools = async () => userEvent.click(screen.getByRole('button', { name: /^modes/i }))
 
 beforeEach(() => {
   useAuthStore.setState({ status: 'authenticated', accessToken: 'tok', user: null, expired: false })
@@ -124,7 +124,7 @@ describe('tool picker (discovery from the backend)', () => {
     const box = await screen.findByRole('checkbox', { name: /web search/i })
     await userEvent.click(box)
     expect(box).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByRole('button', { name: 'Tools, 1 selected' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Modes, 1 selected' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /remove tool web search/i })).toBeInTheDocument()
     await userEvent.click(box)
     expect(useToolSelectionStore.getState().byKey['c1']).toEqual([])

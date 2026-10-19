@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { Check, Wrench } from 'lucide-react'
+import { Check, Plus, Wand2 } from 'lucide-react'
+import { Link, useInRouterContext } from 'react-router-dom'
 import { Button, Spinner } from '@/components/ui/primitives'
 import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -11,6 +12,22 @@ type Selection = ReturnType<typeof useToolSelection>
  * Lists the tools the backend currently offers (GET /tools) and lets the user pick any of them for the
  * next message. Loading, empty and error states are explicit; at most `max` tools can be chosen.
  */
+/** Link to the custom-mode editor (a plain anchor when rendered outside a router, e.g. in isolation). */
+function NewCustomModeLink({ onNavigate }: { onNavigate: () => void }) {
+  const inRouter = useInRouterContext()
+  const cls = 'flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm font-medium text-accent hover:bg-surface-2'
+  const content = (
+    <>
+      <Plus className="size-4" aria-hidden /> Custom mode
+    </>
+  )
+  return inRouter ? (
+    <Link to="/settings/custom-modes" onClick={onNavigate} className={cls}>{content}</Link>
+  ) : (
+    <a href="/settings/custom-modes" className={cls}>{content}</a>
+  )
+}
+
 export function ToolPicker({ selection, disabled }: { selection: Selection; disabled?: boolean }) {
   const { query, tools, selected, max, toggle, modes, mode, setMode } = selection
   const active = selected.length + (mode ? 1 : 0)
@@ -47,11 +64,11 @@ export function ToolPicker({ selection, disabled }: { selection: Selection; disa
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        aria-label={active ? `Tools, ${active} selected` : 'Tools'}
+        aria-label={active ? `Modes, ${active} selected` : 'Modes'}
         title="Choose a mode and tools for this message"
       >
-        <Wrench className="size-4" />
-        <span className="max-sm:hidden">Tools</span>
+        <Wand2 className="size-4" />
+        <span className="max-sm:hidden">Modes</span>
         {active > 0 && (
           <span className="rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-ink">{active}</span>
         )}
@@ -61,7 +78,7 @@ export function ToolPicker({ selection, disabled }: { selection: Selection; disa
         <div
           id={panelId}
           role="dialog"
-          aria-label="Available tools"
+          aria-label="Modes and tools"
           className="animate-in absolute bottom-full left-0 z-30 mb-2 w-[min(22rem,88vw)] rounded-xl border border-line bg-raised p-1.5 shadow-pop"
         >
           {query.isPending ? (
@@ -152,6 +169,9 @@ export function ToolPicker({ selection, disabled }: { selection: Selection; disa
               Selected tools run for your next message. Up to {max}.
             </p>
           )}
+          <div className="mt-1 border-t border-line pt-1">
+            <NewCustomModeLink onNavigate={() => setOpen(false)} />
+          </div>
         </div>
       )}
     </div>

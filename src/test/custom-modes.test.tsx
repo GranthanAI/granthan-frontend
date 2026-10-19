@@ -165,7 +165,7 @@ describe('custom modes in mode selection and defaults', () => {
     const onSend = vi.fn(async () => true)
     renderPage(<Composer conversationId="c1" draftKey="c1" busy={false} onSend={onSend} />)
     const user = userEvent.setup()
-    await user.click(screen.getByRole('button', { name: /^tools/i }))
+    await user.click(screen.getByRole('button', { name: /^modes/i }))
     expect(await screen.findByRole('radio', { name: /tutor/i })).toBeInTheDocument()
     await user.click(await screen.findByRole('radio', { name: /code reviewer/i }))
     await user.type(screen.getByLabelText('Message GranthanAI'), 'review this')
@@ -210,5 +210,20 @@ describe('custom modes in mode selection and defaults', () => {
     await user.click(screen.getByRole('button', { name: 'Save preferences' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))
     expect(calls.find((c) => c.method === 'PATCH')!.body).toEqual({ version: 2, default_mode: `custom:${MODE_ID}` })
+  })
+})
+
+describe('composer "Modes" menu', () => {
+  it('is named Modes and offers a way to create a custom mode', async () => {
+    mock((c) => {
+      if (c.path === '/tools') return json(200, toolsBody)
+      if (c.path === '/custom-modes') return json(200, list([]))
+      if (c.path === '/preferences') return json(200, prefs())
+    })
+    renderPage(<Composer conversationId="c1" draftKey="c1" busy={false} onSend={vi.fn(async () => true)} />)
+    expect(screen.queryByRole('button', { name: /^tools/i })).toBeNull()
+    await userEvent.setup().click(screen.getByRole('button', { name: /^modes/i }))
+    const link = await screen.findByRole('link', { name: /custom mode/i })
+    expect(link).toHaveAttribute('href', '/settings/custom-modes')
   })
 })
