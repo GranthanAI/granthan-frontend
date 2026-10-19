@@ -1,9 +1,10 @@
 import { lazy, memo, Suspense, useState } from 'react'
-import { AlertCircle, Check, ChevronDown, Copy, FileText, Paperclip, RefreshCw } from 'lucide-react'
+import { AlertCircle, Check, ChevronDown, Copy, FileText, Paperclip, RefreshCw, StepForward } from 'lucide-react'
 import { Button } from '@/components/ui/primitives'
 import { copyText } from '@/lib/clipboard'
 import { parseQuoted } from '@/lib/quote'
 import { cn } from '@/lib/utils'
+import { isTruncated } from '@/lib/truncation'
 import type { DisplayMessage } from '@/features/messages/display'
 
 const Markdown = lazy(() => import('./Markdown'))
@@ -13,6 +14,8 @@ interface Props {
   isLastAssistant: boolean
   canRegenerate: boolean
   onRegenerate: (id: string) => void
+  /** Sends "continue" so the model finishes an answer that stopped at its length limit. */
+  onContinue?: () => void
   onRetrySend: () => void
   onDismissSend: () => void
 }
@@ -22,12 +25,19 @@ export const MessageItem = memo(function MessageItem({
   isLastAssistant,
   canRegenerate,
   onRegenerate,
+  onContinue,
   onRetrySend,
   onDismissSend,
 }: Props) {
   if (m.sender === 'user') return <UserMessage m={m} onRetrySend={onRetrySend} onDismissSend={onDismissSend} />
+  const showContinue = isLastAssistant && canRegenerate && !!onContinue && m.status !== 'failed' && isTruncated(m.content)
   return (
-    <AssistantMessage m={m} showRegenerate={isLastAssistant && canRegenerate} onRegenerate={onRegenerate} />
+    <AssistantMessage
+      m={m}
+      showRegenerate={isLastAssistant && canRegenerate}
+      onRegenerate={onRegenerate}
+      onContinue={showContinue ? onContinue : undefined}
+    />
   )
 })
 
@@ -82,10 +92,12 @@ function AssistantMessage({
   m,
   showRegenerate,
   onRegenerate,
+  onContinue,
 }: {
   m: DisplayMessage
   showRegenerate: boolean
   onRegenerate: (id: string) => void
+  onContinue?: () => void
 }) {
   const [copied, setCopied] = useState(false)
   const streaming = m.status === 'streaming'
@@ -142,6 +154,14 @@ function AssistantMessage({
       )}
 
       {m.citations.length > 0 && !streaming && <Sources citations={m.citations} />}
+
+      {onContinue && !streaming && !waiting && (
+        <div className="mt-3">
+          <Button variant="secondary" size="sm" onClick={onContinue}>
+            <StepForward className="size-3.5" aria-hidden /> Continue
+          </Button>
+        </div>
+      )}
 
       {!streaming && !waiting && (m.content || failed) && (
         <div className="mt-1.5 flex items-center gap-1 text-ink-3 opacity-100 transition-opacity md:opacity-0 md:group-focus-within:opacity-100 md:group-hover:opacity-100">

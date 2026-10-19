@@ -23,7 +23,7 @@ import { ApiError, errorMessage } from '@/lib/errors'
 import { truncate } from '@/lib/utils'
 import { EMPTY_RUN, isBusy, useChatStore } from '@/stores/chat.store'
 import { NEW_CHAT_DRAFT } from '@/stores/draft.store'
-import { adoptNewChatMode } from '@/features/tools/useTools'
+import { adoptNewChatMode, useModeSelectionStore } from '@/features/tools/useTools'
 import { useBranchContext } from '@/features/conversations/useBranchContext'
 
 const EXAMPLES = [
@@ -189,6 +189,11 @@ export function ConversationView({ id, embedded = false }: { id: string; embedde
           canRegenerate={!busy}
           onRegenerate={(mid) => {
             if (!regenerate(qc, id, mid)) toast('Please wait for the current response to finish.', 'info')
+          }}
+          onContinue={() => {
+            // Keeps the conversation's chosen mode; no tools or files are re-sent for a plain "continue".
+            const mode = useModeSelectionStore.getState().modeByKey[id]
+            if (!sendMessage(qc, id, 'continue', [], [], { mode })) toast('Please wait for the current response to finish.', 'info')
           }}
           onRetrySend={() => retryPending(qc, id)}
           onDismissSend={() => dismissPending(id)}

@@ -12,6 +12,7 @@ interface Props {
   onLoadOlder: () => void
   canRegenerate: boolean
   onRegenerate: (id: string) => void
+  onContinue?: () => void
   onRetrySend: () => void
   onDismissSend: () => void
   /** Announced to assistive tech without reading every streamed token. */
@@ -28,6 +29,7 @@ export function MessageList({
   onLoadOlder,
   canRegenerate,
   onRegenerate,
+  onContinue,
   onRetrySend,
   onDismissSend,
   statusText,
@@ -111,6 +113,7 @@ export function MessageList({
               isLastAssistant={i === lastAssistantIdx}
               canRegenerate={canRegenerate}
               onRegenerate={onRegenerate}
+              onContinue={onContinue}
               onRetrySend={onRetrySend}
               onDismissSend={onDismissSend}
             />
