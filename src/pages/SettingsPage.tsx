@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/query-keys'
-import { Brain, FileText, KeyRound, Monitor, Moon, Palette, Sparkles, Sun, Type, UserRound } from 'lucide-react'
+import { Brain, FileText, Wand2, KeyRound, Monitor, Moon, Palette, Sparkles, Sun, Type, UserRound } from 'lucide-react'
 import { Alert, Button, TextField } from '@/components/ui/primitives'
 import { toast } from '@/components/ui/overlays'
 import { toApiError } from '@/lib/errors'
@@ -19,9 +19,10 @@ import { SessionsSettings } from '@/components/settings/SessionsSettings'
 import { AiPreferencesSettings } from '@/components/settings/AiPreferencesSettings'
 import { MemorySettingsPage } from '@/components/settings/MemorySettingsPage'
 import { DocumentsSettings } from '@/components/settings/DocumentsSettings'
+import { CustomModesSettings } from '@/components/settings/CustomModesSettings'
 import { Toggle } from '@/components/settings/controls'
 
-export { AiPreferencesSettings, MemorySettingsPage, DocumentsSettings }
+export { AiPreferencesSettings, MemorySettingsPage, DocumentsSettings, CustomModesSettings }
 
 const profileSchema = z.object({
   full_name: z.string().trim().min(2, 'At least 2 characters').max(100),
@@ -35,6 +36,7 @@ const passwordForm = z
 export const SETTINGS_PAGES = [
   { path: 'profile', label: 'Profile', icon: UserRound },
   { path: 'ai', label: 'AI preferences', icon: Sparkles },
+  { path: 'custom-modes', label: 'Custom modes', icon: Wand2 },
   { path: 'memory', label: 'Memory', icon: Brain },
   { path: 'documents', label: 'Documents', icon: FileText },
   { path: 'security', label: 'Security', icon: KeyRound },

@@ -4,6 +4,7 @@ import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { SegmentedControl, SelectField, SettingsSection, TextAreaField } from '@/components/settings/controls'
 import { usePreferences, useResetPreferences, useUpdatePreferences } from '@/features/preferences/usePreferences'
 import { useTools } from '@/features/tools/useTools'
+import { useAllModes } from '@/features/custom-modes/useCustomModes'
 import { ApiError, toApiError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
 import type { Preferences, PreferencesPatch } from '@/types/api'
@@ -45,7 +46,7 @@ export function AiPreferencesSettings() {
   }
 
   const max = tools.data?.max_selected ?? 5
-  const modes = useMemo(() => tools.data?.modes ?? [], [tools.data])
+  const { modes, customLoaded } = useAllModes(tools.data)
   const toolList = useMemo(() => (tools.data?.tools ?? []).filter((t) => t.auto_runnable), [tools.data])
 
   if (prefs.isPending || !draft || !saved) {
@@ -74,7 +75,8 @@ export function AiPreferencesSettings() {
   const tooLong = draft.personal_instructions.length > saved.options.personal_instructions_max
 
   // Saved defaults the backend no longer offers: say so instead of silently hiding them.
-  const modeGone = !!draft.default_mode && tools.isSuccess && !modes.some((m) => m.id === draft.default_mode)
+  const modeGone =
+    !!draft.default_mode && tools.isSuccess && (!draft.default_mode.startsWith('custom:') || customLoaded) && !modes.some((m) => m.id === draft.default_mode)
   const toolsGone = tools.isSuccess ? draft.default_tools.filter((id) => !toolList.some((t) => t.id === id)) : []
 
   const save = async () => {
@@ -109,9 +111,11 @@ export function AiPreferencesSettings() {
         description="These defaults apply to your future messages on every device. Anything you choose for a single message in the composer overrides them for that message only."
       >
         {error && <Alert tone="error">{error}</Alert>}
-        {(modeGone || toolsGone.length > 0) && (
+        {(modeGone || saved.default_mode_available === false || toolsGone.length > 0) && (
           <Alert tone="warn">
-            {modeGone && <>Your saved default mode “{draft.default_mode}” is no longer available; Auto is used instead. </>}
+            {(modeGone || saved.default_mode_available === false) && (
+              <>Your saved default mode {draft.default_mode?.startsWith('custom:') ? '(a custom mode that was archived or removed)' : `“${draft.default_mode}”`} is no longer available; Auto is used instead. Choose another default below. </>
+            )}
             {toolsGone.length > 0 && <>Saved default tools no longer available: {toolsGone.join(', ')}. They are skipped until available again.</>}
           </Alert>
         )}

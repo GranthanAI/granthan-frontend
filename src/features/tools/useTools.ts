@@ -6,6 +6,7 @@ import { toast } from '@/components/ui/overlays'
 import { qk } from '@/lib/query-keys'
 import { toolService } from '@/services/tool.service'
 import { usePreferences } from '@/features/preferences/usePreferences'
+import { useAllModes } from '@/features/custom-modes/useCustomModes'
 import type { ToolDescriptor } from '@/types/api'
 
 /** Selected tool ids per composer (draft key). In memory: survives navigation, not reload. */
@@ -93,7 +94,7 @@ export function useToolSelection(draftKey: string) {
   const setStoredMode = useModeSelectionStore((s) => s.setMode)
 
   const tools: ToolDescriptor[] = useMemo(() => query.data?.tools ?? [], [query.data])
-  const modes = useMemo(() => query.data?.modes ?? [], [query.data])
+  const { modes, customLoaded } = useAllModes(query.data)
   const max = query.data?.max_selected ?? 5
 
   // Saved defaults, limited to what the backend offers right now.
@@ -123,11 +124,12 @@ export function useToolSelection(draftKey: string) {
   // A mode the backend no longer offers (turned off since the list was loaded) falls back to Auto.
   useEffect(() => {
     if (!query.data || !storedMode) return
-    if (!(query.data.modes ?? []).some((m) => m.id === storedMode)) {
-      toast(`Mode no longer available: ${storedMode}. Using Auto.`, 'info')
+    if (storedMode.startsWith('custom:') && !customLoaded) return      // wait for the custom-mode list
+    if (!modes.some((m) => m.id === storedMode)) {
+      toast(`Mode no longer available: ${storedMode.startsWith('custom:') ? 'your custom mode' : storedMode}. Using Auto.`, 'info')
       setStoredMode(draftKey, null)
     }
-  }, [query.data, storedMode, draftKey, setStoredMode])
+  }, [query.data, storedMode, draftKey, setStoredMode, modes, customLoaded])
 
   const toggle = (id: string) => {
     if (selected.includes(id)) setSelected(draftKey, selected.filter((x) => x !== id))

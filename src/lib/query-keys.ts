@@ -10,6 +10,7 @@ export const qk = {
   memorySettings: ['memory', 'settings'] as const,
   memoryFacts: ['memory', 'facts'] as const,
   sessions: ['sessions'] as const,
+  customModes: ['custom-modes'] as const,
   branchContext: (id: string) => ['branch-context', id] as const,
   file: (id: string) => ['file', id] as const,
   fileStatus: (id: string) => ['file-status', id] as const,

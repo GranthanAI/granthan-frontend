@@ -180,6 +180,45 @@ export interface ModeDescriptor {
   id: string
   name: string
   description: string
+  /** True for the user's own custom modes (id is "custom:<uuid>"). */
+  custom?: boolean
+}
+
+/* ---------------- Custom modes ---------------- */
+
+export type ExecutionStyle = 'direct' | 'smart'
+
+/** A user-owned, reusable mode (conversation-service, PostgreSQL). Send `mode_ref` as the message `mode`. */
+export interface CustomMode {
+  mode_id: string
+  mode_ref: string
+  name: string
+  description: string
+  instructions: string
+  execution_style: ExecutionStyle
+  status: 'active' | 'archived'
+  /** Optimistic-concurrency version: send it back on PATCH. */
+  version: number
+  created_at: string
+  updated_at: string
+  archived_at: string | null
+}
+
+export interface CustomModeList {
+  items: CustomMode[]
+  total: number
+  limit: number
+  offset: number
+  max_per_user: number
+  /** Maximum characters, from the server's configuration. */
+  limits?: { name: number; description: number; instructions: number }
+}
+
+export interface CustomModeInput {
+  name: string
+  description: string
+  instructions: string
+  execution_style: ExecutionStyle
 }
 
 export interface ToolListResponse {
@@ -208,6 +247,8 @@ export interface Preferences {
   personal_instructions: string
   citations: CitationPreference
   document_context: DocumentContextPreference
+  /** False when the saved default is a custom mode that was archived (Auto is used until changed). */
+  default_mode_available?: boolean
   /** Optimistic-concurrency version: send it back on PATCH. 0 = never saved. */
   version: number
   updated_at: string | null
