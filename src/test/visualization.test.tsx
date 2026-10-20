@@ -180,3 +180,11 @@ describe('ResponseBlocks', () => {
     expect(svc.createJob).not.toHaveBeenCalled()
   })
 })
+
+describe('renderMermaid config', () => {
+  it('disables HTML labels globally so node labels survive foreignObject stripping', async () => {
+    mermaidMock.render.mockResolvedValue({ svg: SVG })
+    await renderMermaid('flowchart TD\nA-->B')
+    expect(mermaidMock.initialize).toHaveBeenCalledWith(expect.objectContaining({ htmlLabels: false }))
+  })
+})

@@ -16,6 +16,7 @@ export async function renderMermaid(source: string): Promise<SVGElement> {
       startOnLoad: false,
       securityLevel: 'strict',
       theme,
+      htmlLabels: false, // node labels become plain SVG text (foreignObject is stripped by the sanitiser)
       flowchart: { htmlLabels: false },
       maxTextSize: 20000,
       maxEdges: 400,
