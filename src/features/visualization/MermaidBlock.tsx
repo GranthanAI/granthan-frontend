@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { copyText } from '@/lib/clipboard'
 import { fallbackText } from './blocks'
 import { renderMermaid } from './mermaidRender'
 import { vizService } from './service'
+import { useZoomViewer } from './ZoomPane'
 
 type Status = 'rendering' | 'repairing' | 'ready' | 'failed'
 
@@ -22,7 +23,7 @@ export function MermaidBlock({
   maxAttempts: number
   repair: boolean
 }) {
-  const host = useRef<HTMLDivElement>(null)
+  const [svg, setSvg] = useState<SVGElement | null>(null)
   const [current, setCurrent] = useState(source)
   const [attempt, setAttempt] = useState(1)
   const [status, setStatus] = useState<Status>('rendering')
@@ -34,9 +35,9 @@ export function MermaidBlock({
     ;(async () => {
       setStatus('rendering')
       try {
-        const svg = await renderMermaid(current)
+        const drawn = await renderMermaid(current)
         if (cancelled) return
-        host.current?.replaceChildren(svg)
+        setSvg(drawn)
         setStatus('ready')
       } catch (e) {
         if (cancelled) return
@@ -61,6 +62,8 @@ export function MermaidBlock({
     }
   }, [current, attempt, maxAttempts, repair])
 
+  const viewer = useZoomViewer(status === 'ready' ? svg : null)
+
   if (status === 'failed') {
     return (
       <div className="not-prose my-3 rounded-xl border border-line bg-surface-2 px-3.5 py-3 text-sm text-ink-3" data-testid="viz-fallback">
@@ -79,6 +82,8 @@ export function MermaidBlock({
           {title ?? 'Diagram'}
           {status === 'repairing' ? ' — fixing…' : status === 'rendering' ? ' — drawing…' : ''}
         </span>
+        <div className="flex items-center gap-1">
+          {viewer.controls}
         <button
           onClick={async () => {
             if (await copyText(current)) {
@@ -92,8 +97,10 @@ export function MermaidBlock({
           {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
           {copied ? 'Copied' : 'Copy source'}
         </button>
+        </div>
       </div>
-      <div ref={host} className="flex justify-center overflow-x-auto p-3 [&_svg]:h-auto [&_svg]:max-w-full" />
+      {viewer.body ?? <div className="h-24" />}
+      {viewer.overlay}
     </figure>
   )
 }

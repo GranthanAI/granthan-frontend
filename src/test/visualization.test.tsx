@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { splitBlocks, hasVisualFence } from '@/features/visualization/blocks'
 
@@ -178,5 +178,29 @@ describe('ResponseBlocks', () => {
     render(wrap(<ResponseBlocks content={'```manim\n{"template":"text_steps"}\n```'} streaming={false} />))
     expect(await screen.findByText(/turned off/)).toBeTruthy()
     expect(svc.createJob).not.toHaveBeenCalled()
+  })
+})
+
+describe('diagram zoom and full screen', () => {
+  it('zooms with the buttons, expands to a full-screen dialog and closes with X or Esc', async () => {
+    mermaidMock.render.mockResolvedValue({ svg: SVG })
+    const { container } = render(<MermaidBlock source="flowchart TD\nA-->B" maxAttempts={3} repair />)
+    await waitFor(() => expect(container.querySelector('svg')).not.toBeNull())
+    expect(screen.getByLabelText('Reset zoom').textContent).toBe('100%')
+    fireEvent.click(screen.getByLabelText('Zoom in'))
+    expect(screen.getByLabelText('Reset zoom').textContent).toBe('125%')
+    fireEvent.click(screen.getByLabelText('Zoom out'))
+    fireEvent.click(screen.getByLabelText('Zoom out'))
+    expect(screen.getByLabelText('Reset zoom').textContent).toBe('75%')
+
+    fireEvent.click(screen.getByLabelText('Expand to full screen'))
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.querySelector('svg')).not.toBeNull()
+    fireEvent.click(screen.getByLabelText('Close full screen'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.click(screen.getByLabelText('Expand to full screen'))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
