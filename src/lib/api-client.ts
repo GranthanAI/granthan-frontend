@@ -132,6 +132,22 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
   return body as T
 }
 
+/** Authenticated binary download (same refresh-once-on-401 behaviour as `request`). */
+export async function requestBlob(path: string, opts: RequestOptions = {}): Promise<Blob> {
+  const withAccept = { ...opts, headers: { Accept: '*/*', ...opts.headers } }
+  let res = await doFetch(path, withAccept, getAccessToken())
+  if (res.status === 401 && opts.auth !== false) {
+    const fresh = await refreshSession()
+    if (!fresh) {
+      useAuthStore.getState().clear({ expired: true })
+      throw new ApiError('auth', 'Your session has expired. Please sign in again.', 401)
+    }
+    res = await doFetch(path, withAccept, fresh)
+  }
+  if (!res.ok) throw parseErrorBody(res.status, await readBody(res))
+  return res.blob()
+}
+
 type Opts = Omit<RequestOptions, 'method' | 'body'>
 
 export const api = {

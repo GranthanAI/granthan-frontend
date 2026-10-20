@@ -1,0 +1,99 @@
+import { useEffect, useRef, useState } from 'react'
+import { Check, Copy } from 'lucide-react'
+import { copyText } from '@/lib/clipboard'
+import { fallbackText } from './blocks'
+import { renderMermaid } from './mermaidRender'
+import { vizService } from './service'
+
+type Status = 'rendering' | 'repairing' | 'ready' | 'failed'
+
+/**
+ * One Mermaid diagram (the parent keys it by its source, so a changed source starts over at attempt 1). Attempt 1 is the model's original; if it cannot be drawn, up to (max_attempts - 1) targeted repairs of
+ * THIS block are requested (attempts 2..N). After the last failure only this block becomes a text fallback.
+ */
+export function MermaidBlock({
+  source,
+  title,
+  maxAttempts,
+  repair,
+}: {
+  source: string
+  title?: string
+  maxAttempts: number
+  repair: boolean
+}) {
+  const host = useRef<HTMLDivElement>(null)
+  const [current, setCurrent] = useState(source)
+  const [attempt, setAttempt] = useState(1)
+  const [status, setStatus] = useState<Status>('rendering')
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    const ctrl = new AbortController()
+    ;(async () => {
+      setStatus('rendering')
+      try {
+        const svg = await renderMermaid(current)
+        if (cancelled) return
+        host.current?.replaceChildren(svg)
+        setStatus('ready')
+      } catch (e) {
+        if (cancelled) return
+        if (!repair || attempt >= maxAttempts) return setStatus('failed')
+        setStatus('repairing')
+        try {
+          const error = String((e as Error)?.message ?? 'syntax').slice(0, 200)
+          const r = await vizService.repair('mermaid', current, error, attempt + 1, ctrl.signal)
+          if (cancelled) return
+          if (r.ok && r.content) {
+            setCurrent(r.content)
+            setAttempt(attempt + 1)
+          } else setStatus('failed')
+        } catch {
+          if (!cancelled) setStatus('failed')
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+      ctrl.abort()
+    }
+  }, [current, attempt, maxAttempts, repair])
+
+  if (status === 'failed') {
+    return (
+      <div className="not-prose my-3 rounded-xl border border-line bg-surface-2 px-3.5 py-3 text-sm text-ink-3" data-testid="viz-fallback">
+        <p className="italic">{fallbackText('mermaid')}</p>
+        <details className="mt-2">
+          <summary className="cursor-pointer text-xs">Show diagram source</summary>
+          <pre className="mt-2 overflow-x-auto rounded-md bg-code p-2 text-[12px]">{source}</pre>
+        </details>
+      </div>
+    )
+  }
+  return (
+    <figure className="not-prose my-3 overflow-hidden rounded-xl border border-line bg-surface" data-testid="viz-mermaid">
+      <div className="flex items-center justify-between border-b border-line px-3 py-1.5 text-xs text-ink-3">
+        <span>
+          {title ?? 'Diagram'}
+          {status === 'repairing' ? ' — fixing…' : status === 'rendering' ? ' — drawing…' : ''}
+        </span>
+        <button
+          onClick={async () => {
+            if (await copyText(current)) {
+              setCopied(true)
+              setTimeout(() => setCopied(false), 1800)
+            }
+          }}
+          aria-label={copied ? 'Copied' : 'Copy diagram source'}
+          className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-surface-2 hover:text-ink"
+        >
+          {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+          {copied ? 'Copied' : 'Copy source'}
+        </button>
+      </div>
+      <div ref={host} className="flex justify-center overflow-x-auto p-3 [&_svg]:h-auto [&_svg]:max-w-full" />
+    </figure>
+  )
+}

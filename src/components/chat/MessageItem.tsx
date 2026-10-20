@@ -6,8 +6,10 @@ import { parseQuoted } from '@/lib/quote'
 import { cn } from '@/lib/utils'
 import { isTruncated } from '@/lib/truncation'
 import type { DisplayMessage } from '@/features/messages/display'
+import { hasVisualFence } from '@/features/visualization/blocks'
 
 const Markdown = lazy(() => import('./Markdown'))
+const ResponseBlocks = lazy(() => import('@/features/visualization/ResponseBlocks').then((m) => ({ default: m.ResponseBlocks })))
 
 interface Props {
   message: DisplayMessage
@@ -142,7 +144,11 @@ function AssistantMessage({
       ) : (
         <div className="font-response">
           <Suspense fallback={<p className="whitespace-pre-wrap text-[0.9375rem]">{m.content}</p>}>
-            {streaming ? (
+            {hasVisualFence(m.content) ? (
+              <div className={streaming ? 'caret' : undefined}>
+                <ResponseBlocks content={m.content} streaming={streaming} />
+              </div>
+            ) : streaming ? (
               <div className="caret">
                 <Markdown content={m.content} />
               </div>
