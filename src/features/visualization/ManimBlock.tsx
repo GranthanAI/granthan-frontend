@@ -7,7 +7,7 @@ const POLL_MS = 1500
 const MAX_WAIT_MS = 4 * 60 * 1000
 
 /** One Manim animation: submits an idempotent job, polls its status, then plays the owner-authenticated video as a blob. */
-export function ManimBlock({ spec }: { spec: Record<string, unknown> }) {
+export function ManimBlock({ spec, maxAttempts = 3, repair = true }: { spec: Record<string, unknown>; maxAttempts?: number; repair?: boolean }) {
   const [view, setView] = useState<View>({ s: 'pending' })
   const key = JSON.stringify(spec)
 
@@ -19,7 +19,20 @@ export function ManimBlock({ spec }: { spec: Record<string, unknown> }) {
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
     ;(async () => {
       try {
-        let job = await vizService.createJob(spec, ctrl.signal)
+        // Attempt 1 is the model's spec. A spec the server rejects (422) is repaired (attempts 2..N) before giving up.
+        let current = spec
+        let job: ManimJob | null = null
+        for (let attempt = 1; !job; attempt++) {
+          try {
+            job = await vizService.createJob(current, ctrl.signal)
+          } catch (e) {
+            const rejected = (e as { status?: number | null })?.status === 422
+            if (!rejected || !repair || attempt >= maxAttempts) throw e
+            const r = await vizService.repair('manim', JSON.stringify(current), 'invalid_spec', attempt + 1, ctrl.signal)
+            if (!r.ok || !r.content) throw e
+            current = JSON.parse(r.content) as Record<string, unknown>
+          }
+        }
         jobId = job.id
         const started = Date.now()
         while (!ctrl.signal.aborted) {

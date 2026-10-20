@@ -204,3 +204,29 @@ describe('diagram zoom and full screen', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
+
+describe('ManimBlock repairs a rejected spec', () => {
+  const job = (state: string) => ({ id: 'mj_' + 'b'.repeat(32), state, attempt: 1, max_attempts: 3, failure: null, ready: state === 'ready' })
+  const rejected = Object.assign(new Error('The animation description was not valid.'), { status: 422 })
+
+  it('asks for a repair (attempt 2) and then renders the corrected spec', async () => {
+    URL.createObjectURL = vi.fn(() => 'blob:v')
+    URL.revokeObjectURL = vi.fn()
+    svc.createJob.mockRejectedValueOnce(rejected).mockResolvedValueOnce(job('ready'))
+    svc.repair.mockResolvedValue({ ok: true, content: '{"template":"message_flow"}' })
+    svc.media.mockResolvedValue(new Blob(['x']))
+    const { container } = render(<ManimBlock spec={{ template: 'kafka' }} maxAttempts={3} repair />)
+    await waitFor(() => expect(container.querySelector('video')).not.toBeNull())
+    expect(svc.repair).toHaveBeenCalledWith('manim', '{"template":"kafka"}', 'invalid_spec', 2, expect.anything())
+    expect(svc.createJob).toHaveBeenLastCalledWith({ template: 'message_flow' }, expect.anything())
+  })
+
+  it('gives up after three total attempts', async () => {
+    svc.createJob.mockRejectedValue(rejected)
+    svc.repair.mockResolvedValue({ ok: true, content: '{"template":"still_bad"}' })
+    render(<ManimBlock spec={{ template: 'kafka' }} maxAttempts={3} repair />)
+    await screen.findByTestId('viz-fallback')
+    expect(svc.createJob).toHaveBeenCalledTimes(3)
+    expect(svc.repair.mock.calls.map((c) => c[3])).toEqual([2, 3])
+  })
+})
