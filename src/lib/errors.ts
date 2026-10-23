@@ -16,18 +16,22 @@ export class ApiError extends Error {
   readonly status: number | null
   /** Field-level messages keyed by field name, parsed from FastAPI 422 bodies. */
   readonly fields: Record<string, string>
+  /** The structured `detail` of a 4xx response (e.g. a version conflict's current document). Never set for 5xx bodies. */
+  readonly detail?: unknown
 
   constructor(
     kind: ApiErrorKind,
     message: string,
     status: number | null = null,
     fields: Record<string, string> = {},
+    detail?: unknown,
   ) {
     super(message)
     this.name = 'ApiError'
     this.kind = kind
     this.status = status
     this.fields = fields
+    this.detail = detail
   }
 }
 
@@ -98,7 +102,8 @@ export function parseErrorBody(status: number, body: unknown): ApiError {
     } else if (typeof b.message === 'string') message = b.message
   }
   if (!message) message = defaultMessage(kind)
-  return new ApiError(kind, message, status, fields)
+  const detail = body && typeof body === 'object' ? (body as Record<string, unknown>).detail : undefined
+  return new ApiError(kind, message, status, fields, detail && typeof detail === 'object' ? detail : undefined)
 }
 
 export function toApiError(e: unknown): ApiError {

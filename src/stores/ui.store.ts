@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export type Theme = 'light' | 'dark' | 'system'
-export type PanelTab = 'details' | 'files' | 'artifacts' | 'memory'
+export type PanelTab = 'details' | 'files' | 'artifacts' | 'notes'
 
 interface UiState {
   theme: Theme

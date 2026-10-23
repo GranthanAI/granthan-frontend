@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Brain, Download, FileText, GitBranch, Info, Lock, RefreshCw, Shapes, Trash2, X } from 'lucide-react'
+import { Download, FileText, GitBranch, Info, NotebookPen, RefreshCw, Shapes, Trash2, X } from 'lucide-react'
 import { Alert, Button, EmptyState, Skeleton, Spinner } from '@/components/ui/primitives'
 import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { ArtifactsTab } from '@/features/artifacts/ArtifactsTab'
+import { NotesTab } from '@/features/notes/NotesTab'
 import { useDialogs } from '@/features/conversations/dialogs'
 import { useLineage } from '@/features/conversations/hooks'
 import { useBranchContext } from '@/features/conversations/useBranchContext'
@@ -21,7 +22,7 @@ const tabs: { id: PanelTab; label: string; icon: React.ReactNode }[] = [
   { id: 'details', label: 'Details', icon: <Info className="size-4" /> },
   { id: 'files', label: 'Files', icon: <FileText className="size-4" /> },
   { id: 'artifacts', label: 'Artifacts', icon: <Shapes className="size-4" /> },
-  { id: 'memory', label: 'Memory', icon: <Brain className="size-4" /> },
+  { id: 'notes', label: 'Notes', icon: <NotebookPen className="size-4" /> },
 ]
 
 export function ContextPanel({ conversation }: { conversation: Conversation | undefined }) {
@@ -64,7 +65,7 @@ export function ContextPanel({ conversation }: { conversation: Conversation | un
         ) : panelTab === 'artifacts' ? (
           <ArtifactsTab key={conversation.conversation_id} conversation={conversation} />
         ) : (
-          <MemoryTab conversationId={conversation.conversation_id} />
+          <NotesTab key={conversation.conversation_id} conversationId={conversation.conversation_id} />
         )}
       </div>
     </aside>
@@ -296,38 +297,5 @@ function FileStatusBadge({ status }: { status: string }) {
       {busy && <Spinner className="size-3" />}
       {statusLabel[status] ?? status}
     </span>
-  )
-}
-
-function MemoryTab({ conversationId }: { conversationId: string }) {
-  const { ancestors } = useLineage(conversationId)
-  return (
-    <div className="space-y-4 text-sm">
-      <Alert tone="info">
-        <p className="font-medium">Memory details are not available in the app yet.</p>
-        <p className="mt-1 opacity-90">
-          The Memory Service has no public API behind the gateway (it is reached only by the assistant through an internal
-          interface), so there is nothing here to read or edit.
-        </p>
-      </Alert>
-      <section>
-        <h3 className="mb-1.5 flex items-center gap-1.5 font-semibold">
-          <Brain className="size-4" aria-hidden /> What this conversation uses
-        </h3>
-        <ul className="list-disc space-y-1.5 pl-5 text-ink-2">
-          <li>The messages in this conversation (its short-term context).</li>
-          <li>
-            Conversation lineage
-            {ancestors.data ? ` (${ancestors.data.length} ancestor${ancestors.data.length === 1 ? '' : 's'})` : ''}: used by the
-            backend to relate branches. A new branch does not copy its parent's messages.
-          </li>
-          <li>Memory the assistant may build over time is created and updated asynchronously by the backend.</li>
-        </ul>
-      </section>
-      <p className="flex items-start gap-2 text-xs text-ink-3">
-        <Lock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-        Not every message is stored as long-term memory, and this app cannot confirm what has been stored.
-      </p>
-    </div>
   )
 }
