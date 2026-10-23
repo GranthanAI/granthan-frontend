@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Brain, Download, FileText, GitBranch, Info, Lock, RefreshCw, Trash2, X } from 'lucide-react'
+import { Brain, Download, FileText, GitBranch, Info, Lock, RefreshCw, Shapes, Trash2, X } from 'lucide-react'
 import { Alert, Button, EmptyState, Skeleton, Spinner } from '@/components/ui/primitives'
 import { ConfirmDialog, toast } from '@/components/ui/overlays'
+import { ArtifactsTab } from '@/features/artifacts/ArtifactsTab'
 import { useDialogs } from '@/features/conversations/dialogs'
 import { useLineage } from '@/features/conversations/hooks'
 import { useBranchContext } from '@/features/conversations/useBranchContext'
@@ -19,6 +20,7 @@ import type { Conversation, FileListItem } from '@/types/api'
 const tabs: { id: PanelTab; label: string; icon: React.ReactNode }[] = [
   { id: 'details', label: 'Details', icon: <Info className="size-4" /> },
   { id: 'files', label: 'Files', icon: <FileText className="size-4" /> },
+  { id: 'artifacts', label: 'Artifacts', icon: <Shapes className="size-4" /> },
   { id: 'memory', label: 'Memory', icon: <Brain className="size-4" /> },
 ]
 
@@ -27,7 +29,7 @@ export function ContextPanel({ conversation }: { conversation: Conversation | un
   return (
     <aside aria-label="Conversation context" className="flex h-full min-h-0 flex-col bg-surface">
       <div className="flex items-center justify-between border-b border-line px-3 py-2">
-        <div role="tablist" aria-label="Context sections" className="flex gap-1">
+        <div role="tablist" aria-label="Context sections" className="flex min-w-0 gap-0.5 overflow-x-auto">
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -37,7 +39,7 @@ export function ContextPanel({ conversation }: { conversation: Conversation | un
               aria-controls={`panel-${t.id}`}
               onClick={() => openPanel(t.id)}
               className={cn(
-                'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm',
+                'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm',
                 panelTab === t.id ? 'bg-accent-soft font-medium text-ink' : 'text-ink-2 hover:bg-surface-2',
               )}
             >
@@ -46,7 +48,7 @@ export function ContextPanel({ conversation }: { conversation: Conversation | un
             </button>
           ))}
         </div>
-        <Button variant="ghost" size="icon" onClick={closePanel} aria-label="Close context panel">
+        <Button variant="ghost" size="icon" className="ml-1" onClick={closePanel} aria-label="Close context panel">
           <X className="size-4" />
         </Button>
       </div>
@@ -59,6 +61,8 @@ export function ContextPanel({ conversation }: { conversation: Conversation | un
           <DetailsTab conversation={conversation} />
         ) : panelTab === 'files' ? (
           <FilesTab conversationId={conversation.conversation_id} />
+        ) : panelTab === 'artifacts' ? (
+          <ArtifactsTab key={conversation.conversation_id} conversation={conversation} />
         ) : (
           <MemoryTab conversationId={conversation.conversation_id} />
         )}

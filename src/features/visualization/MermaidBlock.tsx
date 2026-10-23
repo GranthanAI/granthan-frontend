@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Check, Copy } from 'lucide-react'
+import { artifactService } from '@/features/artifacts/service'
+import { useArtifactSource } from '@/features/artifacts/source'
 import { copyText } from '@/lib/clipboard'
 import { fallbackText } from './blocks'
 import { renderMermaid } from './mermaidRender'
@@ -7,6 +10,9 @@ import { vizService } from './service'
 import { useZoomViewer } from './ZoomPane'
 
 type Status = 'rendering' | 'repairing' | 'ready' | 'failed'
+
+/** Diagrams already registered in this browser session (the server call is idempotent; this just avoids repeating it). */
+const registered = new Set<string>()
 
 /**
  * One Mermaid diagram (the parent keys it by its source, so a changed source starts over at attempt 1). Attempt 1 is the model's original; if it cannot be drawn, up to (max_attempts - 1) targeted repairs of
@@ -28,6 +34,21 @@ export function MermaidBlock({
   const [attempt, setAttempt] = useState(1)
   const [status, setStatus] = useState<Status>('rendering')
   const [copied, setCopied] = useState(false)
+  const artifactSource = useArtifactSource()
+  const qc = useQueryClient()
+
+  // Once a diagram has actually been drawn, persist its (possibly repaired) source so the Artifacts tab and exports can
+  // show it. Idempotent on the server; failure is silent because the chat itself does not depend on it.
+  useEffect(() => {
+    if (status !== 'ready' || !artifactSource) return
+    const key = `${artifactSource.conversationId}:${artifactSource.messageId}:${current}`
+    if (registered.has(key)) return
+    registered.add(key)
+    artifactService
+      .register({ conversation_id: artifactSource.conversationId, source_message_id: artifactSource.messageId, type: 'mermaid', content: current, title })
+      .then(() => qc.invalidateQueries({ queryKey: ['artifacts'], predicate: (q) => q.queryKey[1] === 'list' }))
+      .catch(() => registered.delete(key))
+  }, [status, artifactSource, current, title, qc])
 
   useEffect(() => {
     let cancelled = false

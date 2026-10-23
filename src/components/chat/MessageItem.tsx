@@ -7,12 +7,15 @@ import { cn } from '@/lib/utils'
 import { isTruncated } from '@/lib/truncation'
 import type { DisplayMessage } from '@/features/messages/display'
 import { hasVisualFence } from '@/features/visualization/blocks'
+import { ArtifactSourceProvider } from '@/features/artifacts/source'
 
 const Markdown = lazy(() => import('./Markdown'))
 const ResponseBlocks = lazy(() => import('@/features/visualization/ResponseBlocks').then((m) => ({ default: m.ResponseBlocks })))
 
 interface Props {
   message: DisplayMessage
+  /** The open conversation: lets diagrams/animations in this message be linked to it in the artifact registry. */
+  conversationId?: string
   isLastAssistant: boolean
   canRegenerate: boolean
   onRegenerate: (id: string) => void
@@ -24,6 +27,7 @@ interface Props {
 
 export const MessageItem = memo(function MessageItem({
   message: m,
+  conversationId,
   isLastAssistant,
   canRegenerate,
   onRegenerate,
@@ -36,6 +40,7 @@ export const MessageItem = memo(function MessageItem({
   return (
     <AssistantMessage
       m={m}
+      conversationId={conversationId}
       showRegenerate={isLastAssistant && canRegenerate}
       onRegenerate={onRegenerate}
       onContinue={showContinue ? onContinue : undefined}
@@ -92,11 +97,13 @@ function UserMessage({
 
 function AssistantMessage({
   m,
+  conversationId,
   showRegenerate,
   onRegenerate,
   onContinue,
 }: {
   m: DisplayMessage
+  conversationId?: string
   showRegenerate: boolean
   onRegenerate: (id: string) => void
   onContinue?: () => void
@@ -146,7 +153,13 @@ function AssistantMessage({
           <Suspense fallback={<p className="whitespace-pre-wrap text-[0.9375rem]">{m.content}</p>}>
             {hasVisualFence(m.content) ? (
               <div className={streaming ? 'caret' : undefined}>
-                <ResponseBlocks content={m.content} streaming={streaming} />
+                {conversationId && m.id ? (
+                  <ArtifactSourceProvider conversationId={conversationId} messageId={m.id}>
+                    <ResponseBlocks content={m.content} streaming={streaming} />
+                  </ArtifactSourceProvider>
+                ) : (
+                  <ResponseBlocks content={m.content} streaming={streaming} />
+                )}
               </div>
             ) : streaming ? (
               <div className="caret">

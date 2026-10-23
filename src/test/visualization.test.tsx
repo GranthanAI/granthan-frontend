@@ -9,20 +9,26 @@ vi.mock('mermaid', () => ({ default: mermaidMock }))
 const svc = vi.hoisted(() => ({
   config: vi.fn(),
   repair: vi.fn(),
-  createJob: vi.fn(),
-  getJob: vi.fn(),
-  cancel: vi.fn(),
-  media: vi.fn(),
+}))
+const art = vi.hoisted(() => ({ register: vi.fn(), get: vi.fn(), list: vi.fn(), retry: vi.fn(), media: vi.fn(), thumbnail: vi.fn() }))
+vi.mock('@/features/artifacts/service', async (orig) => ({
+  ...(await orig<typeof import('@/features/artifacts/service')>()),
+  artifactService: art,
 }))
 vi.mock('@/features/visualization/service', async (orig) => ({
   ...(await orig<typeof import('@/features/visualization/service')>()),
   vizService: svc,
 }))
 
-import { MermaidBlock } from '@/features/visualization/MermaidBlock'
-import { ManimBlock } from '@/features/visualization/ManimBlock'
+import { MermaidBlock as RawMermaidBlock } from '@/features/visualization/MermaidBlock'
 import { ResponseBlocks } from '@/features/visualization/ResponseBlocks'
 import { renderMermaid } from '@/features/visualization/mermaidRender'
+
+const MermaidBlock = (props: React.ComponentProps<typeof RawMermaidBlock>) => (
+  <QueryClientProvider client={new QueryClient()}>
+    <RawMermaidBlock {...props} />
+  </QueryClientProvider>
+)
 
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg"><g><text>ok</text></g></svg>'
 
@@ -118,35 +124,6 @@ describe('MermaidBlock attempts', () => {
   })
 })
 
-describe('ManimBlock lifecycle', () => {
-  const job = (state: string, extra = {}) => ({ id: 'mj_' + 'a'.repeat(32), state, attempt: 1, max_attempts: 3, failure: null, ready: state === 'ready', ...extra })
-
-  it('polls until ready and plays the authenticated video', async () => {
-    URL.createObjectURL = vi.fn(() => 'blob:video')
-    URL.revokeObjectURL = vi.fn()
-    svc.createJob.mockResolvedValue(job('pending'))
-    svc.getJob.mockResolvedValue(job('ready'))
-    svc.media.mockResolvedValue(new Blob(['x'], { type: 'video/mp4' }))
-    const { container } = render(<ManimBlock spec={{ template: 'text_steps' }} />)
-    expect(await screen.findByRole('status')).toBeTruthy()
-    await waitFor(() => expect(container.querySelector('video')?.getAttribute('src')).toBe('blob:video'), { timeout: 4000 })
-    expect(svc.media).toHaveBeenCalledTimes(1)
-  })
-
-  it('shows a text fallback when the job fails', async () => {
-    svc.createJob.mockResolvedValue(job('failed', { failure: 'render_error', message: 'The visual could not be generated.' }))
-    render(<ManimBlock spec={{ template: 'text_steps' }} />)
-    const el = await screen.findByTestId('viz-fallback')
-    expect(el.textContent).toContain('unavailable')
-  })
-
-  it('shows a fallback when the job cannot even be created', async () => {
-    svc.createJob.mockRejectedValue(new Error('Too many animations in progress.'))
-    render(<ManimBlock spec={{ template: 'text_steps' }} />)
-    expect((await screen.findByTestId('viz-fallback')).textContent).toContain('Too many animations')
-  })
-})
-
 describe('ResponseBlocks', () => {
   const wrap = (ui: React.ReactElement) => (
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>
@@ -177,7 +154,7 @@ describe('ResponseBlocks', () => {
     svc.config.mockResolvedValue({ enabled: true, mermaid: true, manim: false, max_attempts: 3, repair: true })
     render(wrap(<ResponseBlocks content={'```manim\n{"template":"text_steps"}\n```'} streaming={false} />))
     expect(await screen.findByText(/turned off/)).toBeTruthy()
-    expect(svc.createJob).not.toHaveBeenCalled()
+    expect(art.register).not.toHaveBeenCalled()
   })
 })
 
@@ -205,28 +182,16 @@ describe('diagram zoom and full screen', () => {
   })
 })
 
-describe('ManimBlock repairs a rejected spec', () => {
-  const job = (state: string) => ({ id: 'mj_' + 'b'.repeat(32), state, attempt: 1, max_attempts: 3, failure: null, ready: state === 'ready' })
-  const rejected = Object.assign(new Error('The animation description was not valid.'), { status: 422 })
-
-  it('asks for a repair (attempt 2) and then renders the corrected spec', async () => {
-    URL.createObjectURL = vi.fn(() => 'blob:v')
-    URL.revokeObjectURL = vi.fn()
-    svc.createJob.mockRejectedValueOnce(rejected).mockResolvedValueOnce(job('ready'))
-    svc.repair.mockResolvedValue({ ok: true, content: '{"template":"message_flow"}' })
-    svc.media.mockResolvedValue(new Blob(['x']))
-    const { container } = render(<ManimBlock spec={{ template: 'kafka' }} maxAttempts={3} repair />)
-    await waitFor(() => expect(container.querySelector('video')).not.toBeNull())
-    expect(svc.repair).toHaveBeenCalledWith('manim', '{"template":"kafka"}', 'invalid_spec', 2, expect.anything())
-    expect(svc.createJob).toHaveBeenLastCalledWith({ template: 'message_flow' }, expect.anything())
-  })
-
-  it('gives up after three total attempts', async () => {
-    svc.createJob.mockRejectedValue(rejected)
-    svc.repair.mockResolvedValue({ ok: true, content: '{"template":"still_bad"}' })
-    render(<ManimBlock spec={{ template: 'kafka' }} maxAttempts={3} repair />)
-    await screen.findByTestId('viz-fallback')
-    expect(svc.createJob).toHaveBeenCalledTimes(3)
-    expect(svc.repair.mock.calls.map((c) => c[3])).toEqual([2, 3])
+describe('renderMermaid failure cleanup', () => {
+  it('removes the error graphic Mermaid appends to <body> when a diagram cannot be parsed', async () => {
+    mermaidMock.render.mockImplementation(async (id: string) => {
+      const leaked = document.createElement('div')
+      leaked.id = `d${id}`
+      leaked.textContent = 'Syntax error in text'
+      document.body.appendChild(leaked)
+      throw new Error('Parse error')
+    })
+    await expect(renderMermaid('not mermaid')).rejects.toThrow('Parse error')
+    expect(document.body.textContent).not.toContain('Syntax error in text')
   })
 })

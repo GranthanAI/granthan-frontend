@@ -23,7 +23,17 @@ export async function renderMermaid(source: string): Promise<SVGElement> {
     })
     initialized = theme
   }
-  const { svg } = await mermaid.render(`viz-${Date.now()}-${counter++}`, source)
+  const id = `viz-${Date.now()}-${counter++}`
+  let svg: string
+  try {
+    ;({ svg } = await mermaid.render(id, source))
+  } catch (e) {
+    // On a parse error Mermaid leaves its own "Syntax error" graphic (a temporary #d<id> node) appended to <body>, which
+    // shows up under the whole app. Remove it; the caller shows its own error state.
+    document.getElementById(`d${id}`)?.remove()
+    document.getElementById(id)?.remove()
+    throw e
+  }
   // Wrapped in a <div> because DOMPurify drops a bare leading <svg>; RETURN_DOM avoids re-serialising (mXSS) the result.
   const body = DOMPurify.sanitize(`<div>${svg}</div>`, {
     USE_PROFILES: { svg: true, svgFilters: true },

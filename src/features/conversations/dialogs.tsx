@@ -7,12 +7,14 @@ import { ConfirmDialog, Dialog, toast } from '@/components/ui/overlays'
 import { Button, TextField } from '@/components/ui/primitives'
 import { truncate } from '@/lib/utils'
 import { useCreateConversation, useDeleteConversation, useRenameConversation } from './hooks'
+import { ExportDialog } from '@/features/exports/ExportDialog'
 import type { Conversation } from '@/types/api'
 
 type Dialogs =
   | { kind: 'rename'; conversation: Conversation }
   | { kind: 'delete'; conversation: Conversation; descendants: number }
   | { kind: 'branch'; conversation: Conversation }
+  | { kind: 'export'; conversation: Conversation }
   | null
 
 export const useDialogs = create<{ dialog: Dialogs; open: (d: NonNullable<Dialogs>) => void; close: () => void }>(
@@ -108,6 +110,8 @@ export function ConversationDialogs() {
         }
       />
     )
+
+  if (dialog.kind === 'export') return <ExportDialog conversation={c} onClose={close} />
 
   if (dialog.kind === 'branch')
     return (

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Outlet, useLocation, useParams } from 'react-router-dom'
-import { GitBranch, Menu as MenuIcon, Network, PanelLeftOpen, PanelRight } from 'lucide-react'
+import { Download, GitBranch, Menu as MenuIcon, Network, PanelLeftOpen, PanelRight } from 'lucide-react'
 import { Button } from '@/components/ui/primitives'
 import { Toaster } from '@/components/ui/overlays'
 import { ConversationDialogs, useDialogs } from '@/features/conversations/dialogs'
@@ -89,6 +89,11 @@ export function AppShell() {
               </Button>
             )}
             {conversation && (
+              <Button variant="ghost" size="sm" onClick={() => openDialog({ kind: 'export', conversation })} title="Export this conversation or its whole hierarchy">
+                <Download className="size-4" /> <span className="max-sm:hidden">Export</span>
+              </Button>
+            )}
+            {conversation && (
               <Button variant="ghost" size="sm" onClick={() => openDialog({ kind: 'branch', conversation })} title="Start a linked conversation">
                 <GitBranch className="size-4" /> <span className="max-sm:hidden">Branch</span>
               </Button>
@@ -112,7 +117,7 @@ export function AppShell() {
 
         {panelOpen && !isSettings && (
           <>
-            <div className="hidden w-80 shrink-0 border-l border-line xl:block">
+            <div className="hidden w-[23rem] shrink-0 border-l border-line xl:block">
               <ContextPanel conversation={conversation} />
             </div>
             <div className="fixed inset-0 z-30 xl:hidden">

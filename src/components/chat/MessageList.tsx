@@ -110,6 +110,7 @@ export function MessageList({
             <MessageItem
               key={m.key}
               message={m}
+              conversationId={conversationId}
               isLastAssistant={i === lastAssistantIdx}
               canRegenerate={canRegenerate}
               onRegenerate={onRegenerate}

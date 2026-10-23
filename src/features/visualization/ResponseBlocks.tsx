@@ -49,7 +49,7 @@ export function ResponseBlocks({ content, streaming }: { content: string; stream
           )
         if (b.type === 'manim')
           return cfg.enabled && cfg.manim ? (
-            <ManimBlock key={i} spec={b.spec} maxAttempts={cfg.max_attempts} repair={cfg.repair} />
+            <ManimBlock key={i} spec={b.spec} />
           ) : (
             <p key={i} className="my-3 text-sm italic text-ink-3">
               Animation unavailable: this kind of visual is turned off.
