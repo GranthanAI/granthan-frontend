@@ -25,3 +25,22 @@ describe('markdown line breaks in tables', () => {
     expect(container.querySelector('tbody td:nth-child(2)')?.textContent).toBe('plain text')
   })
 })
+
+describe('multi-line code written as one inline span with <br>', () => {
+  const cell = "`ts<br>function f<T>(x: T): T {<br>  return x;<br>}<br>`"
+
+  it('renders a real code block with newlines and the language, never literal <br> tags', () => {
+    const { container } = render(<Markdown content={table(cell)} />)
+    const code = container.querySelector('tbody td:nth-child(2) pre code') as HTMLElement
+    expect(code).not.toBeNull()
+    expect(code.textContent?.replace(/\n$/, '')).toBe('function f<T>(x: T): T {\n  return x;\n}')
+    expect(code.className).toContain('language-ts')
+    expect(container.textContent).not.toContain('<br')
+  })
+
+  it('leaves ordinary inline code untouched', () => {
+    const { container } = render(<Markdown content={table('`Array<string>`')} />)
+    expect(container.querySelector('tbody td:nth-child(2) code')?.textContent).toBe('Array<string>')
+    expect(container.querySelector('tbody td:nth-child(2) pre')).toBeNull()
+  })
+})

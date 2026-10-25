@@ -8,6 +8,8 @@ import { isTruncated } from '@/lib/truncation'
 import type { DisplayMessage } from '@/features/messages/display'
 import { hasVisualFence } from '@/features/visualization/blocks'
 import { ArtifactSourceProvider } from '@/features/artifacts/source'
+import { EditableResponseProvider } from '@/features/source-edits/context'
+import { ResponseEditActions, ResponseEditCard } from '@/features/source-edits/ResponseEdit'
 
 const Markdown = lazy(() => import('./Markdown'))
 const ResponseBlocks = lazy(() => import('@/features/visualization/ResponseBlocks').then((m) => ({ default: m.ResponseBlocks })))
@@ -127,6 +129,7 @@ function AssistantMessage({
       aria-label="Assistant message"
       aria-busy={streaming || waiting}
     >
+      <EditableResponseProvider conversationId={conversationId} messageId={m.id} enabled={!streaming && !waiting && !failed}>
       {waiting && !m.content ? (
         <div role="status" className="flex items-center gap-2 py-2 text-sm text-ink-3">
           <span className="flex gap-1" aria-hidden>
@@ -172,6 +175,8 @@ function AssistantMessage({
         </div>
       )}
 
+      {!streaming && !waiting && !failed && m.content && <ResponseEditCard content={m.content} />}
+
       {m.citations.length > 0 && !streaming && <Sources citations={m.citations} />}
 
       {onContinue && !streaming && !waiting && (
@@ -190,6 +195,7 @@ function AssistantMessage({
               {copied ? 'Copied' : 'Copy'}
             </Button>
           )}
+          {!failed && <ResponseEditActions content={m.content} />}
           {showRegenerate && m.id && (
             <Button variant="ghost" size="sm" onClick={() => onRegenerate(m.id!)}>
               <RefreshCw className="size-3.5" /> {failed ? 'Try again' : 'Regenerate'}
@@ -197,6 +203,7 @@ function AssistantMessage({
           )}
         </div>
       )}
+      </EditableResponseProvider>
     </article>
   )
 }

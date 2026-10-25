@@ -28,7 +28,7 @@ export function ResponseBlocks({ content, streaming }: { content: string; stream
         if (b.type === 'text')
           return (
             <Suspense key={i} fallback={<p className="whitespace-pre-wrap text-[0.9375rem]">{b.content}</p>}>
-              <Markdown content={b.content} />
+              <Markdown content={b.content} scope={String(i)} />
             </Suspense>
           )
         if (b.type === 'pending' || (streaming && (b.type === 'mermaid' || b.type === 'manim'))) {
