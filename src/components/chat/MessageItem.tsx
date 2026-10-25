@@ -1,6 +1,9 @@
 import { lazy, memo, Suspense, useState } from 'react'
 import { AlertCircle, Check, ChevronDown, Copy, FileText, Paperclip, RefreshCw, StepForward } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/primitives'
+import { youtubeService } from '@/services/youtube.service'
+import { timecode, videoLink, youtubeDocTitle } from '@/features/uploads/youtube'
 import { copyText } from '@/lib/clipboard'
 import { parseQuoted } from '@/lib/quote'
 import { cn } from '@/lib/utils'
@@ -226,14 +229,46 @@ function Sources({ citations }: { citations: DisplayMessage['citations'] }) {
         <ul className="space-y-1 border-t border-line px-3 py-2 text-xs">
           {citations.map((c, i) => (
             <li key={`${c.file_id}-${c.page_number}-${c.section}-${i}`} className="text-ink-2">
-              <span className="font-medium text-ink">{c.source_name}</span>
-              {c.page_number != null && <span> · page {c.page_number}</span>}
-              {c.section && <span> · {c.section}</span>}
+              {c.start_seconds != null ? (
+                <VideoCitation c={c} />
+              ) : (
+                <>
+                  <span className="font-medium text-ink">{c.source_name}</span>
+                  {c.page_number != null && <span> · page {c.page_number}</span>}
+                  {c.section && <span> · {c.section}</span>}
+                </>
+              )}
             </li>
           ))}
           <li className="pt-1 text-ink-3">Sources are shown for this session only; the backend does not store them with the message.</li>
         </ul>
       )}
     </div>
+  )
+}
+
+/** A passage from a video transcript: the title and a link to the exact moment (built from the validated video id). */
+export function VideoCitation({ c }: { c: DisplayMessage['citations'][number] }) {
+  const { data } = useQuery({
+    queryKey: ['youtube-source', c.file_id],
+    queryFn: ({ signal }) => youtubeService.get(c.file_id, signal),
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+  const start = c.start_seconds ?? 0
+  const label = c.end_seconds && c.end_seconds > start ? `${timecode(start)}–${timecode(c.end_seconds)}` : timecode(start)
+  const href = data ? videoLink(data.video_id, start) : null
+  return (
+    <>
+      <span className="font-medium text-ink">{data?.title ?? youtubeDocTitle(c.source_name)}</span>
+      <span> · video · </span>
+      {href ? (
+        <a href={href} target="_blank" rel="noopener noreferrer nofollow" className="underline" aria-label={`Open the video at ${timecode(start)}`}>
+          {label}
+        </a>
+      ) : (
+        <span>{label}</span>
+      )}
+    </>
   )
 }

@@ -71,6 +71,9 @@ export interface Citation {
   source_name: string
   page_number: number | null
   section: string | null
+  /** Video passages only: where in the video it was said (whole seconds). */
+  start_seconds?: number | null
+  end_seconds?: number | null
 }
 
 /** Event schema of GET /stream/{conversation_id}. */

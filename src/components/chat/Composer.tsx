@@ -1,10 +1,13 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertCircle, ArrowUp, CheckCircle2, FileText, Paperclip, Quote, RefreshCw, Wrench, X } from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { AlertCircle, ArrowUp, CheckCircle2, FileText, Paperclip, Quote, RefreshCw, Wrench, X, SquarePlay } from 'lucide-react'
 import { Button, Spinner } from '@/components/ui/primitives'
 import { FILE_POLICY } from '@/lib/config'
 import { cn, formatBytes } from '@/lib/utils'
 import { useAttachments, type Attachment } from '@/features/uploads/useAttachments'
 import { useDocumentContext } from '@/features/uploads/useDocumentContext'
+import { useYoutubeSources, type YoutubeItem } from '@/features/uploads/useYoutubeSources'
+import { YoutubeLinkDialog } from '@/features/uploads/YoutubeLinkDialog'
+import { canRetry, isFailure, isYoutubeDocName, PHASE_LABEL, youtubeDocTitle } from '@/features/uploads/youtube'
 import { useToolSelection } from '@/features/tools/useTools'
 import { usePreferences } from '@/features/preferences/usePreferences'
 import { ToolPicker } from './ToolPicker'
@@ -39,6 +42,9 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
   const setDraft = useDraftStore((s) => s.set)
   const clearDraft = useDraftStore((s) => s.clear)
   const att = useAttachments(conversationId)
+  const yt = useYoutubeSources(conversationId)
+  const [ytOpen, setYtOpen] = useState(false)
+  const closeYt = useCallback(() => setYtOpen(false), [])
   const quote = useQuoteStore((s) => s.byKey[draftKey] ?? null)
   const clearQuote = useQuoteStore((s) => s.clear)
   const tools = useToolSelection(draftKey)
@@ -64,11 +70,11 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
 
   const text = draft.trim()
   const tooLong = formatQuoted(quote, draft).length > MAX_MESSAGE_CHARS
-  const canSend = !!text && !tooLong && !busy && !submitting && !att.blocking
+  const canSend = !!text && !tooLong && !busy && !submitting && !att.blocking && !yt.blocking
   const reason = busy
     ? 'Wait for the current response to finish'
-    : att.blocking
-      ? 'Files are still uploading or being processed'
+    : att.blocking || yt.blocking
+      ? 'Files or video transcripts are still being prepared'
       : undefined
 
   const submit = async () => {
@@ -76,13 +82,14 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
     setSubmitting(true)
     try {
       // New attachments plus still-usable documents from earlier in the conversation (no duplicates).
-      const fileIds = [...new Set([...docs.includedIds, ...att.readyIds])]
+      const fileIds = [...new Set([...docs.includedIds, ...att.readyIds, ...yt.readyIds])]
       // The selected excerpt (if any) is sent with the prompt as a quote block.
       const ok = await onSend(formatQuoted(quote, text), fileIds, tools.explicitTools, tools.explicitMode)
       if (ok) {
         clearDraft(draftKey)
         clearQuote(draftKey)
         att.clear()
+        yt.clear()
         tools.clear()
       }
     } finally {
@@ -133,10 +140,13 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
           dragging ? 'border-accent bg-accent-soft' : 'border-line',
         )}
       >
-        {att.items.length > 0 && (
+        {(att.items.length > 0 || yt.items.length > 0) && (
           <ul className="flex flex-wrap gap-2 px-3 pt-3" aria-label="Attachments">
             {att.items.map((a) => (
               <AttachmentChip key={a.localId} a={a} onRemove={() => att.remove(a.localId)} onRetry={() => void att.retry(a.localId)} />
+            ))}
+            {yt.items.map((i) => (
+              <YoutubeChip key={i.localId} i={i} onRemove={() => yt.remove(i.localId)} onRetry={() => yt.retry(i.localId)} />
             ))}
           </ul>
         )}
@@ -178,8 +188,8 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
                   d.included ? 'border-line bg-surface' : 'border-dashed border-line text-ink-3',
                 )}
               >
-                <FileText className="size-3.5 shrink-0 text-ink-3" aria-hidden />
-                <span className="max-w-40 truncate font-medium" title={d.inheritedFrom ? `${d.name} (inherited from ${d.inheritedFrom})` : d.name}>{d.name}</span>
+                {isYoutubeDocName(d.name) ? <SquarePlay className="size-3.5 shrink-0 text-ink-3" aria-hidden /> : <FileText className="size-3.5 shrink-0 text-ink-3" aria-hidden />}
+                <span className="max-w-40 truncate font-medium" title={d.inheritedFrom ? `${d.name} (inherited from ${d.inheritedFrom})` : d.name}>{isYoutubeDocName(d.name) ? youtubeDocTitle(d.name) : d.name}</span>
                 {d.inheritedFrom && <span className="max-w-28 truncate text-ink-3">from {d.inheritedFrom}</span>}
                 {d.usable ? (
                   <button
@@ -229,6 +239,9 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
             <Button variant="ghost" size="icon" onClick={() => fileInput.current?.click()} aria-label="Attach files" title={`Attach ${FILE_POLICY.label} files`}>
               <Paperclip className="size-4" />
             </Button>
+            <Button variant="ghost" size="icon" onClick={() => setYtOpen(true)} aria-label="Attach YouTube link" title="Attach a YouTube video's transcript">
+              <SquarePlay className="size-4" />
+            </Button>
             <ToolPicker selection={tools} disabled={busy} />
             {formatQuoted(quote, draft).length > MAX_MESSAGE_CHARS * 0.8 && (
               <span className={cn('text-xs', tooLong ? 'text-danger' : 'text-ink-3')} role={tooLong ? 'alert' : undefined}>
@@ -249,6 +262,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
           </Button>
         </div>
       </div>
+      <YoutubeLinkDialog open={ytOpen} onClose={closeYt} onSubmit={(urls) => yt.add(urls)} />
       <p className="mt-2 text-center text-xs text-ink-3" aria-live="polite">
         {reason ?? 'Enter to send · Shift+Enter for a new line'}
       </p>
@@ -303,6 +317,35 @@ function AttachmentChip({ a, onRemove, onRetry }: { a: Attachment; onRemove: () 
         </button>
       )}
       <button onClick={onRemove} aria-label={`Remove ${a.file.name}`} className="rounded-md p-1 text-ink-3 hover:bg-surface-2 hover:text-ink">
+        <X className="size-3.5" />
+      </button>
+    </li>
+  )
+}
+
+function YoutubeChip({ i, onRemove, onRetry }: { i: YoutubeItem; onRemove: () => void; onRetry: () => void }) {
+  const failed = isFailure(i.phase)
+  const name = i.title ?? `youtube.com/watch?v=${i.videoId}`
+  const detail = failed ? (i.message ?? PHASE_LABEL[i.phase]) : i.phase === 'ready' ? `${PHASE_LABEL.ready}${i.language ? ` · ${i.language}${i.isGenerated ? ' (auto-generated)' : ''}` : ''}` : PHASE_LABEL[i.phase]
+  return (
+    <li
+      data-testid="youtube-chip"
+      className={cn('flex max-w-full items-center gap-2 rounded-xl border px-2.5 py-1.5 text-xs', failed ? 'border-danger/40 bg-danger-soft' : 'border-line bg-surface')}
+    >
+      <SquarePlay className="size-4 shrink-0 text-ink-3" aria-hidden />
+      <div className="min-w-0">
+        <div className="max-w-44 truncate font-medium text-ink" title={name}>{name}</div>
+        <div className={cn('flex items-center gap-1', failed ? 'text-danger' : i.phase === 'ready' ? 'text-ok' : 'text-ink-3')} role="status">
+          {i.phase === 'ready' ? <CheckCircle2 className="size-3" aria-hidden /> : !failed && <Spinner className="size-3" />}
+          <span className="truncate" title={failed ? detail : undefined}>{detail}</span>
+        </div>
+      </div>
+      {canRetry(i.phase) && (
+        <button onClick={onRetry} aria-label={`Retry ${name}`} className="rounded-md p-1 text-danger hover:bg-danger/10">
+          <RefreshCw className="size-3.5" />
+        </button>
+      )}
+      <button onClick={onRemove} aria-label={`Remove ${name}`} className="rounded-md p-1 text-ink-3 hover:bg-surface-2 hover:text-ink">
         <X className="size-3.5" />
       </button>
     </li>
