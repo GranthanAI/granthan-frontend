@@ -6,6 +6,7 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import rehypeHighlight from 'rehype-highlight'
 import { SourceBlock } from '@/features/source-edits/SourceBlock'
+import { normalizeMath } from '@/features/messages/math'
 
 function textOf(node: ReactNode): string {
   if (typeof node === 'string' || typeof node === 'number') return String(node)
@@ -129,7 +130,7 @@ function MarkdownImpl({ content, scope = '0' }: { content: string; scope?: strin
         rehypePlugins={[rehypeKatex, [rehypeHighlight, { detect: false, ignoreMissing: true }]]}
         components={components}
       >
-        {content}
+        {normalizeMath(content)}
       </ReactMarkdown>
     </div>
     </ScopeCtx.Provider>

@@ -54,6 +54,8 @@ export interface ApiMessage {
   created_at: string
   status: MessageStatus
   file_ids?: string[]
+  /** Sources of an assistant answer, persisted with the message; absent/empty on older messages and user messages. */
+  citations?: Citation[]
   /** Only on POST .../messages and .../regenerate: the assistant id the reply streams under. */
   response_message_id?: string | null
 }
@@ -62,6 +64,8 @@ export interface SendMessageBody {
   content: string
   mode?: string
   selected_tools?: string[]
+  /** Ask the model to include a Mermaid/Manim diagram when it would help. Omitted when off. */
+  include_diagrams?: boolean
   file_ids?: string[]
 }
 

@@ -72,7 +72,8 @@ export function buildDisplay(
       content,
       status,
       error,
-      citations: citations[m.message_id] ?? [],
+      // The persisted record is authoritative; the in-memory live copy only bridges until history is refetched.
+      citations: m.citations?.length ? m.citations : (citations[m.message_id] ?? []),
       fileIds: m.file_ids ?? [],
       createdAt: m.created_at,
       local: false,

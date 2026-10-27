@@ -240,7 +240,6 @@ function Sources({ citations }: { citations: DisplayMessage['citations'] }) {
               )}
             </li>
           ))}
-          <li className="pt-1 text-ink-3">Sources are shown for this session only; the backend does not store them with the message.</li>
         </ul>
       )}
     </div>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { AlertCircle, ArrowUp, CheckCircle2, FileText, Paperclip, Quote, RefreshCw, Wrench, X, SquarePlay } from 'lucide-react'
+import { AlertCircle, ArrowUp, CheckCircle2, FileText, Paperclip, Quote, RefreshCw, Workflow, Wrench, X, SquarePlay } from 'lucide-react'
 import { Button, Spinner } from '@/components/ui/primitives'
 import { FILE_POLICY } from '@/lib/config'
 import { cn, formatBytes } from '@/lib/utils'
@@ -12,6 +12,7 @@ import { useToolSelection } from '@/features/tools/useTools'
 import { usePreferences } from '@/features/preferences/usePreferences'
 import { ToolPicker } from './ToolPicker'
 import { useDraftStore } from '@/stores/draft.store'
+import { useUiStore } from '@/stores/ui.store'
 import { useQuoteStore } from '@/stores/quote.store'
 import { formatQuoted } from '@/lib/quote'
 
@@ -243,6 +244,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
               <SquarePlay className="size-4" />
             </Button>
             <ToolPicker selection={tools} disabled={busy} />
+            <DiagramToggle />
             {formatQuoted(quote, draft).length > MAX_MESSAGE_CHARS * 0.8 && (
               <span className={cn('text-xs', tooLong ? 'text-danger' : 'text-ink-3')} role={tooLong ? 'alert' : undefined}>
                 {formatQuoted(quote, draft).length}/{MAX_MESSAGE_CHARS}
@@ -349,5 +351,27 @@ function YoutubeChip({ i, onRemove, onRetry }: { i: YoutubeItem; onRemove: () =>
         <X className="size-3.5" />
       </button>
     </li>
+  )
+}
+
+/** "Include diagram if necessary": a per-message hint that lets the model add a Mermaid or Manim diagram when it helps. */
+function DiagramToggle() {
+  const on = useUiStore((s) => s.includeDiagrams)
+  const set = useUiStore((s) => s.setIncludeDiagrams)
+  return (
+    <button
+      type="button"
+      onClick={() => set(!on)}
+      aria-pressed={on}
+      aria-label="Include diagram if necessary"
+      title={on ? 'On: the answer may include a diagram or animation when it helps. Click to turn off' : 'Include a diagram if necessary'}
+      className={cn(
+        'inline-flex h-9 items-center gap-1.5 rounded-lg px-2 text-sm transition-colors',
+        on ? 'bg-accent-soft font-medium text-ink' : 'text-ink-2 hover:bg-surface-2',
+      )}
+    >
+      <Workflow className="size-4" aria-hidden />
+      <span className="max-sm:hidden">Diagram if needed</span>
+    </button>
   )
 }

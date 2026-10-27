@@ -5,6 +5,7 @@ import { openConversationStream, type OpenedStream } from '@/lib/streaming'
 import { uuid } from '@/lib/utils'
 import { messageService } from '@/services/message.service'
 import { isBusy, useChatStore } from '@/stores/chat.store'
+import { useUiStore } from '@/stores/ui.store'
 import type { ApiMessage, Page, StreamEvent } from '@/types/api'
 
 /**
@@ -341,6 +342,7 @@ export function sendMessage(
           file_ids: fileIds.length ? fileIds : undefined,
           selected_tools: toolIds,
           mode: mode ?? undefined,
+          include_diagrams: useUiStore.getState().includeDiagrams || undefined,
         },
         idempotencyKey,
         signal,

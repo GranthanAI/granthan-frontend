@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Download, FileText, GitBranch, Info, NotebookPen, RefreshCw, Shapes, Trash2, X } from 'lucide-react'
+import { Download, FileText, GitBranch, Info, NotebookPen, Rows2, RefreshCw, Shapes, Trash2, X } from 'lucide-react'
 import { Alert, Button, EmptyState, Skeleton, Spinner } from '@/components/ui/primitives'
 import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { ArtifactsTab } from '@/features/artifacts/ArtifactsTab'
@@ -26,50 +26,94 @@ const tabs: { id: PanelTab; label: string; icon: React.ReactNode }[] = [
 ]
 
 export function ContextPanel({ conversation }: { conversation: Conversation | undefined }) {
-  const { panelTab, openPanel, closePanel } = useUiStore()
+  const { panelTab, panelStack, stackTabs, selectPanelTab, setPanelStack, closePanel } = useUiStore()
+  // In stack mode every open section is shown (in tab order); otherwise just the selected one.
+  const open = panelStack ? tabs.filter((t) => stackTabs.includes(t.id)) : tabs.filter((t) => t.id === panelTab)
+  const stacked = open.length > 1
   return (
     <aside aria-label="Conversation context" className="flex h-full min-h-0 flex-col bg-surface">
       <div className="flex items-center justify-between border-b border-line px-3 py-2">
-        <div role="tablist" aria-label="Context sections" className="flex min-w-0 gap-0.5 overflow-x-auto">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              id={`tab-${t.id}`}
-              aria-selected={panelTab === t.id}
-              aria-controls={`panel-${t.id}`}
-              onClick={() => openPanel(t.id)}
-              className={cn(
-                'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm',
-                panelTab === t.id ? 'bg-accent-soft font-medium text-ink' : 'text-ink-2 hover:bg-surface-2',
-              )}
-            >
-              {t.icon}
-              {t.label}
-            </button>
-          ))}
+        <div role="tablist" aria-label="Context sections" aria-multiselectable={panelStack} className="flex min-w-0 gap-0.5 overflow-x-auto">
+          {tabs.map((t) => {
+            const active = open.some((o) => o.id === t.id)
+            return (
+              <button
+                key={t.id}
+                role="tab"
+                id={`tab-${t.id}`}
+                aria-selected={active}
+                aria-controls={`panel-${t.id}`}
+                onClick={() => selectPanelTab(t.id)}
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm',
+                  active ? 'bg-accent-soft font-medium text-ink' : 'text-ink-2 hover:bg-surface-2',
+                )}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            )
+          })}
         </div>
-        <Button variant="ghost" size="icon" className="ml-1" onClick={closePanel} aria-label="Close context panel">
-          <X className="size-4" />
-        </Button>
+        <div className="ml-1 flex shrink-0 items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setPanelStack(!panelStack)}
+            aria-pressed={panelStack}
+            aria-label={panelStack ? 'Show one section at a time' : 'Show several sections together'}
+            title={panelStack ? 'Showing sections together. Click tabs to add or remove them' : 'Show several sections together, e.g. Artifacts and Notes'}
+            className={cn(panelStack && 'bg-accent-soft text-ink')}
+          >
+            <Rows2 className="size-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={closePanel} aria-label="Close context panel">
+            <X className="size-4" />
+          </Button>
+        </div>
       </div>
-      <div role="tabpanel" id={`panel-${panelTab}`} aria-labelledby={`tab-${panelTab}`} className="min-h-0 flex-1 overflow-y-auto p-4">
-        {!conversation ? (
-          <EmptyState icon={<Info className="size-5" />} title="No conversation selected">
-            Open or start a conversation to see its details, files and memory context.
-          </EmptyState>
-        ) : panelTab === 'details' ? (
-          <DetailsTab conversation={conversation} />
-        ) : panelTab === 'files' ? (
-          <FilesTab conversationId={conversation.conversation_id} />
-        ) : panelTab === 'artifacts' ? (
-          <ArtifactsTab key={conversation.conversation_id} conversation={conversation} />
-        ) : (
-          <NotesTab key={conversation.conversation_id} conversationId={conversation.conversation_id} />
-        )}
+      <div className={cn('flex min-h-0 flex-1 flex-col', stacked && 'divide-y divide-line')}>
+        {open.map((t) => (
+          <section
+            key={t.id}
+            role="tabpanel"
+            id={`panel-${t.id}`}
+            aria-labelledby={`tab-${t.id}`}
+            className="flex min-h-0 flex-1 basis-0 flex-col"
+          >
+            {stacked && (
+              <header className="flex shrink-0 items-center justify-between bg-surface-2 px-3 py-1.5 text-xs font-semibold text-ink-2">
+                <span className="inline-flex items-center gap-1.5">{t.icon}{t.label}</span>
+                <button
+                  onClick={() => selectPanelTab(t.id)}
+                  className="rounded p-0.5 hover:bg-surface hover:text-ink"
+                  aria-label={`Hide ${t.label}`}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </header>
+            )}
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <PanelBody tab={t.id} conversation={conversation} />
+            </div>
+          </section>
+        ))}
       </div>
     </aside>
   )
+}
+
+function PanelBody({ tab, conversation }: { tab: PanelTab; conversation: Conversation | undefined }) {
+  if (!conversation)
+    return (
+      <EmptyState icon={<Info className="size-5" />} title="No conversation selected">
+        Open or start a conversation to see its details, files and memory context.
+      </EmptyState>
+    )
+  if (tab === 'details') return <DetailsTab conversation={conversation} />
+  if (tab === 'files') return <FilesTab conversationId={conversation.conversation_id} />
+  if (tab === 'artifacts') return <ArtifactsTab key={conversation.conversation_id} conversation={conversation} />
+  return <NotesTab key={conversation.conversation_id} conversationId={conversation.conversation_id} />
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {

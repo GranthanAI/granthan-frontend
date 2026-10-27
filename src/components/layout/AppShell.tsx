@@ -10,13 +10,14 @@ import { WindowLayer } from '@/components/windows/WindowLayer'
 import { useWindowsStore } from '@/stores/windows.store'
 import { useUiStore } from '@/stores/ui.store'
 import { ContextPanel } from './ContextPanel'
+import { PanelResizer } from './PanelResizer'
 import { Sidebar } from './Sidebar'
 
 export function AppShell() {
   const { id } = useParams()
   const location = useLocation()
   const conv = useConversation(id)
-  const { sidebarCollapsed, toggleSidebar, mobileSidebarOpen, setMobileSidebar, panelOpen, openPanel, closePanel } =
+  const { sidebarCollapsed, toggleSidebar, mobileSidebarOpen, setMobileSidebar, panelOpen, panelStack, panelWidth, openPanel, closePanel } =
     useUiStore()
   const openDialog = useDialogs((s) => s.open)
   const openWindow = useWindowsStore((s) => s.open)
@@ -117,7 +118,11 @@ export function AppShell() {
 
         {panelOpen && !isSettings && (
           <>
-            <div className="hidden w-[23rem] shrink-0 border-l border-line xl:block">
+            <div
+              className="relative hidden shrink-0 border-l border-line xl:block"
+              style={{ width: panelWidth ?? (panelStack ? 448 : 368) }}
+            >
+              <PanelResizer />
               <ContextPanel conversation={conversation} />
             </div>
             <div className="fixed inset-0 z-30 xl:hidden">
