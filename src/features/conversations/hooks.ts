@@ -2,8 +2,8 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { useMemo } from 'react'
 import { qk } from '@/lib/query-keys'
 import { conversationService, graphService } from '@/services/conversation.service'
-import { fromGraph, mergeConversations } from './tree'
-import type { Conversation } from '@/types/api'
+import { lineageExtras, mergeConversations } from './tree'
+import type { Conversation, GraphConversation } from '@/types/api'
 
 export function useConversationList() {
   const q = useInfiniteQuery({
@@ -51,14 +51,10 @@ export function useLineage(id: string | undefined) {
   //  - children(id): every item is a direct child of `id`
   //  - ancestors(id): documented root-to-parent chain, so item[i]'s parent is item[i-1]
   // The conversation list/get endpoints carry the authoritative parent for loaded items.
-  const extra = useMemo<Conversation[]>(() => {
-    const anc = (ancestors.data ?? []).map((g, i, arr) => ({
-      ...fromGraph(g),
-      parent_conversation_id: i > 0 ? arr[i - 1]!.conversation_id : null,
-    }))
-    const kids = (children.data ?? []).map((g) => ({ ...fromGraph(g), parent_conversation_id: id ?? null }))
-    return [...anc, ...kids]
-  }, [ancestors.data, children.data, id])
+  const extra = useMemo<Conversation[]>(
+    () => lineageExtras(ancestors.data ?? [], children.data ?? [], id),
+    [ancestors.data, children.data, id],
+  )
   return { ancestors, children, extra }
 }
 
@@ -102,6 +98,11 @@ export function useDeleteConversation() {
     onSuccess: (_d, id) => {
       qc.removeQueries({ queryKey: qk.conversation(id) })
       qc.removeQueries({ queryKey: qk.messages(id) })
+      // The branch lists come from the graph, which learns about the deletion asynchronously: drop the conversation from every
+      // cached list now instead of waiting for a refetch that could still return it.
+      for (const key of [['children'], ['ancestors']] as const) {
+        qc.setQueriesData<GraphConversation[]>({ queryKey: key }, (old) => old?.filter((g) => g.conversation_id !== id))
+      }
       void qc.invalidateQueries({ queryKey: qk.conversations })
     },
   })

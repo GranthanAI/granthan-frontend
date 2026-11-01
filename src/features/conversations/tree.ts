@@ -21,6 +21,19 @@ export function fromGraph(g: GraphConversation): Conversation {
   }
 }
 
+/**
+ * Tree nodes contributed by the graph for conversation `id`: its ancestors (root first; item i's parent is item i-1) and its
+ * direct children. Conversations that were deleted are never included: opening one fails with "conversation not found".
+ */
+export function lineageExtras(ancestors: GraphConversation[], children: GraphConversation[], id: string | undefined): Conversation[] {
+  const anc = ancestors.map((g, i, arr) => ({
+    ...fromGraph(g),
+    parent_conversation_id: i > 0 ? arr[i - 1]!.conversation_id : null,
+  }))
+  const kids = children.map((g) => ({ ...fromGraph(g), parent_conversation_id: id ?? null }))
+  return [...anc, ...kids].filter((c) => c.status !== 'deleted')
+}
+
 /** Merges node sources; earlier arguments win (the list endpoint is authoritative). */
 export function mergeConversations(...sources: Conversation[][]): Conversation[] {
   const map = new Map<string, Conversation>()
