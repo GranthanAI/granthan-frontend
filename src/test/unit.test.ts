@@ -3,6 +3,7 @@ import { buildTree, flatten, mergeConversations, pathTo } from '@/features/conve
 import { buildDisplay } from '@/features/messages/display'
 import { parseErrorBody } from '@/lib/errors'
 import { SseParser } from '@/lib/streaming'
+import { inferType } from '@/lib/validation'
 import { loginSchema, passwordSchema, signupSchema, validateFile } from '@/lib/validation'
 import type { ApiMessage, Conversation } from '@/types/api'
 
@@ -114,6 +115,10 @@ describe('validation', () => {
     expect(validateFile({ name: 'a.txt', size: 10, type: '' }).ok).toBe(true)
     expect(validateFile({ name: 'notes.md', size: 10, type: '' }).ok).toBe(true)
     expect(validateFile({ name: 'r.docx', size: 10, type: '' }).ok).toBe(true)
+    for (const name of ['data.csv', 'bundle.zip', 'main.py', 'App.tsx', 'Dockerfile', 'old.doc', 'deck.pptx', 'sheet.xlsx', 'REPORT.PDF'])
+      expect(validateFile({ name, size: 10, type: '' }).ok, name).toBe(true)
+    for (const name of ['a.exe', 'tool.dll', 'photo.png', '.env', 'noextension', 'a.pdf.exe'])
+      expect(validateFile({ name, size: 10, type: 'application/octet-stream' }).ok, name).toBe(false)
     expect(validateFile({ name: 'a.exe', size: 10, type: 'application/x-msdownload' }).ok).toBe(false)
     expect(validateFile({ name: 'a.pdf', size: 0, type: 'application/pdf' }).ok).toBe(false)
     expect(validateFile({ name: 'big.pdf', size: 200 * 1024 * 1024, type: 'application/pdf' }).ok).toBe(false)
@@ -165,5 +170,15 @@ describe('buildDisplay reconciliation', () => {
     )
     expect(d[0]).toMatchObject({ status: 'failed' })
     expect(d[1]).toMatchObject({ status: 'send_failed', error: 'offline' })
+  })
+})
+
+describe('inferType', () => {
+  it('declares a type from the file name', () => {
+    expect(inferType('a.zip')).toBe('application/zip')
+    expect(inferType('a.csv')).toBe('text/csv')
+    expect(inferType('main.py')).toBe('text/plain')
+    expect(inferType('Dockerfile')).toBe('text/plain')
+    expect(inferType('a.exe')).toBe('')
   })
 })

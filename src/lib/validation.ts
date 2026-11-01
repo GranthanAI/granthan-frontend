@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { FILE_POLICY } from './config'
+import { isSupportedName, typeForName } from './file-types'
 
 /** Mirrors auth-service `validate_password_strength`. */
 export const passwordSchema = z
@@ -53,18 +54,9 @@ export const titleSchema = z
 
 export type FileCheck = { ok: true } | { ok: false; reason: string }
 
-const EXT_TYPES: Record<string, string> = {
-  pdf: 'application/pdf',
-  txt: 'text/plain',
-  md: 'text/markdown',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-}
-
-/** Browsers often report an empty or generic type (e.g. for .md); infer it from the extension. */
+/** Browsers often report an empty or generic type (e.g. for .md or source code); the name decides (see file-types.ts). */
 export function inferType(name: string): string {
-  const ext = name.split('.').pop()?.toLowerCase() ?? ''
-  return EXT_TYPES[ext] ?? ''
+  return typeForName(name)
 }
 
 /** Client-side pre-check mirroring File Service policy; the server remains authoritative. */
@@ -76,8 +68,7 @@ export function validateFile(file: Pick<File, 'name' | 'size' | 'type'>): FileCh
       reason: `${file.name} is larger than ${FILE_POLICY.maxBytes / 1024 / 1024} MB.`,
     }
   if (/[\\/]/.test(file.name)) return { ok: false, reason: `${file.name} has an invalid name.` }
-  const type = (inferType(file.name) || file.type).toLowerCase()
-  if (!(FILE_POLICY.allowedTypes as readonly string[]).includes(type))
-    return { ok: false, reason: `${file.name}: only ${FILE_POLICY.label} files are supported.` }
+  if (!isSupportedName(file.name))
+    return { ok: false, reason: `${file.name}: this file type is not supported. Use ${FILE_POLICY.label}.` }
   return { ok: true }
 }
