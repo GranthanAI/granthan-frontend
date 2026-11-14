@@ -22,6 +22,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   personal_instructions: '',
   citations: 'show',
   document_context: 'conversation',
+  default_model: 'auto',
   version: 0,
   updated_at: null,
   options: DEFAULT_OPTIONS,

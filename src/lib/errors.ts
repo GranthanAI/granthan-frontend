@@ -1,3 +1,5 @@
+import type { BillingDenied } from '@/types/billing'
+
 export type ApiErrorKind =
   | 'auth' // 401
   | 'forbidden' // 403
@@ -32,6 +34,26 @@ export class ApiError extends Error {
     this.status = status
     this.fields = fields
     this.detail = detail
+  }
+
+  /** Typed denial when a service refused the request for billing reasons (plan 4.6); null otherwise. */
+  get billingDenial(): BillingDenied | null {
+    return billingDenialOf(this.detail, this.message)
+  }
+}
+
+export function billingDenialOf(detail: unknown, fallbackMessage = ''): BillingDenied | null {
+  if (!detail || typeof detail !== 'object') return null
+  const d = detail as Record<string, unknown>
+  if (d.code !== 'billing_denied' || typeof d.reason !== 'string') return null
+  const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined)
+  return {
+    reason: d.reason,
+    message_key: str(d.message_key) ?? '',
+    message: str(d.message) ?? fallbackMessage,
+    resets_at: str(d.resets_at),
+    upgrade_to: str(d.upgrade_to) ?? null,
+    limit: str(d.limit),
   }
 }
 

@@ -254,6 +254,8 @@ export interface Preferences {
   personal_instructions: string
   citations: CitationPreference
   document_context: DocumentContextPreference
+  /** 'auto' or a catalog model id (billing). */
+  default_model?: string
   /** False when the saved default is a custom mode that was archived (Auto is used until changed). */
   default_mode_available?: boolean
   /** Optimistic-concurrency version: send it back on PATCH. 0 = never saved. */
@@ -272,7 +274,7 @@ export interface PreferenceOptions {
 }
 
 export type PreferencesPatch = Partial<
-  Pick<Preferences, 'default_mode' | 'default_tools' | 'answer_length' | 'tone' | 'language' | 'personal_instructions' | 'citations' | 'document_context'>
+  Pick<Preferences, 'default_mode' | 'default_tools' | 'answer_length' | 'tone' | 'language' | 'personal_instructions' | 'citations' | 'document_context' | 'default_model'>
 > & { version?: number }
 
 export interface MemorySettings {

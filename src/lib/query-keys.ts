@@ -13,5 +13,11 @@ export const qk = {
   customModes: ['custom-modes'] as const,
   branchContext: (id: string) => ['branch-context', id] as const,
   file: (id: string) => ['file', id] as const,
+  billingMe: ['billing', 'me'] as const,
+  billingModels: ['billing', 'me', 'models'] as const,
+  billingPlans: ['billing', 'plans'] as const,
+  billingUsage: (from?: string, to?: string) => ['billing', 'usage', from ?? '', to ?? ''] as const,
+  billingUsageAll: ['billing', 'usage'] as const,
+  billingInvoices: ['billing', 'invoices'] as const,
   fileStatus: (id: string) => ['file-status', id] as const,
 }

@@ -3,6 +3,7 @@ import { errorMessage, toApiError } from '@/lib/errors'
 import { qk } from '@/lib/query-keys'
 import { openConversationStream, type OpenedStream } from '@/lib/streaming'
 import { uuid } from '@/lib/utils'
+import { invalidateBilling } from '@/features/billing/hooks'
 import { messageService } from '@/services/message.service'
 import { isBusy, useChatStore } from '@/stores/chat.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -225,6 +226,7 @@ async function settle(
   messageId: string | null,
   result: Outcome,
 ) {
+  invalidateBilling(qc) // a completed (or refused) turn changes today's usage
   const store = useChatStore.getState()
   if (messageId && result.final?.citations?.length) store.setCitations(messageId, result.final.citations)
   store.patch(cid, (r) => ({
