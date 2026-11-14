@@ -15,6 +15,7 @@ import { useAuthStore } from '@/stores/auth.store'
 
 const settingsPage = <K extends string>(name: K) =>
   lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: (m as unknown as Record<K, React.ComponentType>)[name] })))
+const PricingPage = lazy(() => import('@/pages/PricingPage').then((m) => ({ default: m.PricingPage })))
 const SettingsLayout = settingsPage('SettingsLayout')
 const ProfileSettings = settingsPage('ProfileSettings')
 const SecuritySettings = settingsPage('SecuritySettings')
@@ -54,6 +55,8 @@ export function PublicOnly() {
 }
 
 export const routes = [
+  // Public: reachable signed in and signed out (not under PublicOnly, which would bounce signed-in users).
+  { path: '/pricing', element: <Suspense fallback={<FullScreenLoader />}><PricingPage /></Suspense> },
   {
     element: <PublicOnly />,
     children: [

@@ -114,8 +114,15 @@ export function LoginPage() {
   )
 }
 
+/** Where to go after signing up: only an in-app path (e.g. /pricing, for "Upgrade" while signed out). */
+const safeFrom = (state: unknown): string | undefined => {
+  const from = (state as { from?: string } | null)?.from
+  return from && from.startsWith('/') && !from.startsWith('//') ? from : undefined
+}
+
 export function SignupPage() {
   const navigate = useNavigate()
+  const from = safeFrom(useLocation().state)
   const [formError, setFormError] = useState('')
   const form = useForm<SignupValues>({
     resolver: zodResolver(signupSchema),
@@ -131,13 +138,13 @@ export function SignupPage() {
         // Email verification is switched off on the server: the account is usable straight away.
         try {
           await authService.login({ email: v.email, password: v.password })
-          navigate('/', { replace: true })
+          navigate(from ?? '/', { replace: true })
         } catch {
-          navigate('/login', { replace: true, state: { notice: 'Account created. Please sign in.' } })
+          navigate('/login', { replace: true, state: { notice: 'Account created. Please sign in.', from } })
         }
         return
       }
-      navigate(`/verify-email?email=${encodeURIComponent(v.email)}`, { replace: true })
+      navigate(`/verify-email?email=${encodeURIComponent(v.email)}`, { replace: true, state: { from } })
     } catch (e) {
       const err = toApiError(e)
       const general = applyServerError(e, form.setError)
@@ -184,6 +191,7 @@ export function SignupPage() {
 
 export function VerifyEmailPage() {
   const [params] = useSearchParams()
+  const from = safeFrom(useLocation().state)
   const email = params.get('email') ?? ''
   const navigate = useNavigate()
   const [formError, setFormError] = useState('')
@@ -195,7 +203,7 @@ export function VerifyEmailPage() {
     setFormError('')
     try {
       await authService.verifyEmail({ email, code })
-      navigate('/login', { replace: true, state: { notice: 'Email verified. You can sign in now.' } })
+      navigate('/login', { replace: true, state: { notice: 'Email verified. You can sign in now.', from } })
     } catch (e) {
       setFormError(toApiError(e).message)
     }
