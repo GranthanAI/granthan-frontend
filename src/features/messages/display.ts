@@ -20,6 +20,9 @@ export interface DisplayMessage {
   citations: Citation[]
   fileIds: string[]
   createdAt: string | null
+  /** Catalog id of the model that answered (assistant, persisted), and billing's notice (e.g. limit.best_switched). */
+  model?: string | null
+  noticeKey?: string | null
   /** True for rows that exist only in the local overlay (not yet persisted history). */
   local: boolean
 }
@@ -76,6 +79,8 @@ export function buildDisplay(
       citations: m.citations?.length ? m.citations : (citations[m.message_id] ?? []),
       fileIds: m.file_ids ?? [],
       createdAt: m.created_at,
+      model: m.model ?? m.billing?.granted_model ?? null,
+      noticeKey: m.billing?.notice_key ?? null,
       local: false,
     })
   }
@@ -91,6 +96,8 @@ export function buildDisplay(
       citations: [],
       fileIds: pendingUser.fileIds,
       createdAt: null,
+      model: null,
+      noticeKey: null,
       local: true,
     })
   }
@@ -114,6 +121,8 @@ export function buildDisplay(
       citations: live.messageId ? (citations[live.messageId] ?? []) : [],
       fileIds: [],
       createdAt: null,
+      model: null,
+      noticeKey: null,
       local: true,
     })
   }

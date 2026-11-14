@@ -11,6 +11,8 @@ import { canRetry, isFailure, isYoutubeDocName, PHASE_LABEL, youtubeDocTitle } f
 import { useToolSelection } from '@/features/tools/useTools'
 import { usePreferences } from '@/features/preferences/usePreferences'
 import { ToolPicker } from './ToolPicker'
+import { ModelPicker } from './ModelPicker'
+import { UsageMeter } from './UsageMeter'
 import { useDraftStore } from '@/stores/draft.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useQuoteStore } from '@/stores/quote.store'
@@ -244,6 +246,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
               <SquarePlay className="size-4" />
             </Button>
             <ToolPicker selection={tools} disabled={busy} />
+            <ModelPicker selectionKey={draftKey} disabled={busy} />
             <DiagramToggle />
             {formatQuoted(quote, draft).length > MAX_MESSAGE_CHARS * 0.8 && (
               <span className={cn('text-xs', tooLong ? 'text-danger' : 'text-ink-3')} role={tooLong ? 'alert' : undefined}>
@@ -268,6 +271,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
       <p className="mt-2 text-center text-xs text-ink-3" aria-live="polite">
         {reason ?? 'Enter to send · Shift+Enter for a new line'}
       </p>
+      <p className="mt-0.5 text-center"><UsageMeter /></p>
     </div>
   )
 }

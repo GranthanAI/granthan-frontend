@@ -11,6 +11,8 @@ export interface PendingUser {
   toolIds?: string[]
   /** Response mode chosen for this message (null = Auto); kept for retry. */
   mode: string | null
+  /** Model chosen for this message (undefined = saved default); kept for retry. */
+  model?: string
   idempotencyKey: string
   /** Server id once the POST was acknowledged. */
   messageId: string | null

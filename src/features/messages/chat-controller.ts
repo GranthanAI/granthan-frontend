@@ -4,6 +4,7 @@ import { qk } from '@/lib/query-keys'
 import { openConversationStream, type OpenedStream } from '@/lib/streaming'
 import { uuid } from '@/lib/utils'
 import { invalidateBilling } from '@/features/billing/hooks'
+import { modelForRequest } from '@/features/billing/model-selection'
 import { messageService } from '@/services/message.service'
 import { isBusy, useChatStore } from '@/stores/chat.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -304,6 +305,8 @@ export interface SendOptions {
   /** Response mode id. undefined/null = not chosen for this message: the user's saved default
    * applies (or Auto). 'auto' = explicitly Auto. */
   mode?: string | null
+  /** Catalog model id or 'auto'. undefined = the conversation's chosen model (if any), else the saved default. */
+  model?: string
   retryOf?: { idempotencyKey: string; tempId: string }
 }
 
@@ -317,6 +320,7 @@ export function sendMessage(
   opts: SendOptions = {},
 ): boolean {
   const { retryOf, mode = null } = opts
+  const model = opts.model ?? modelForRequest(qc, cid)
   if (active.has(cid) || isBusy(useChatStore.getState().runs[cid])) return false
   const idempotencyKey = retryOf?.idempotencyKey ?? uuid()
   useChatStore.getState().patch(cid, (r) => ({
@@ -327,6 +331,7 @@ export function sendMessage(
       fileIds,
       toolIds,
       mode,
+      model,
       idempotencyKey,
       messageId: null,
       status: 'sending',
@@ -344,6 +349,7 @@ export function sendMessage(
           file_ids: fileIds.length ? fileIds : undefined,
           selected_tools: toolIds,
           mode: mode ?? undefined,
+          model,
           include_diagrams: useUiStore.getState().includeDiagrams || undefined,
         },
         idempotencyKey,
@@ -363,6 +369,7 @@ export function retryPending(qc: QueryClient, cid: string): boolean {
   if (!p || p.status !== 'failed') return false
   return sendMessage(qc, cid, p.content, p.fileIds, p.toolIds, {
     mode: p.mode ?? null,
+    model: p.model,
     retryOf: { idempotencyKey: p.idempotencyKey, tempId: p.tempId },
   })
 }
@@ -373,11 +380,12 @@ export function dismissPending(cid: string) {
 
 export function regenerate(qc: QueryClient, cid: string, assistantMessageId: string): boolean {
   if (active.has(cid) || isBusy(useChatStore.getState().runs[cid])) return false
+  const model = modelForRequest(qc, cid)
   void runTurn({
     qc,
     cid,
     replaces: assistantMessageId,
-    trigger: () => messageService.regenerate(cid, assistantMessageId),
+    trigger: () => messageService.regenerate(cid, assistantMessageId, model),
     onTriggerError: (message) =>
       useChatStore.getState().patch(cid, (r) => ({
         ...r,

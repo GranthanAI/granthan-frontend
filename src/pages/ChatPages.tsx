@@ -24,6 +24,7 @@ import { truncate } from '@/lib/utils'
 import { EMPTY_RUN, isBusy, useChatStore } from '@/stores/chat.store'
 import { NEW_CHAT_DRAFT } from '@/stores/draft.store'
 import { adoptNewChatMode, useModeSelectionStore } from '@/features/tools/useTools'
+import { adoptNewChatModel } from '@/features/billing/model-selection'
 import { useBranchContext } from '@/features/conversations/useBranchContext'
 
 const EXAMPLES = [
@@ -43,6 +44,7 @@ export function NewChatPage() {
     try {
       const c = await create.mutateAsync({ title: truncate(text, 60) })
       adoptNewChatMode(NEW_CHAT_DRAFT, c.conversation_id)
+      adoptNewChatModel(NEW_CHAT_DRAFT, c.conversation_id)
       sendMessage(qc, c.conversation_id, text, fileIds, toolIds, { mode })
       navigate(`/c/${c.conversation_id}`)
       return true

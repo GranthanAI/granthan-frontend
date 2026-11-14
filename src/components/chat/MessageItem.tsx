@@ -2,6 +2,7 @@ import { lazy, memo, Suspense, useState } from 'react'
 import { AlertCircle, Check, ChevronDown, Copy, FileText, Paperclip, RefreshCw, StepForward } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/primitives'
+import { useMyModels } from '@/features/billing/hooks'
 import { youtubeService } from '@/services/youtube.service'
 import { timecode, videoLink, youtubeDocTitle } from '@/features/uploads/youtube'
 import { copyText } from '@/lib/clipboard'
@@ -180,6 +181,8 @@ function AssistantMessage({
 
       {!streaming && !waiting && !failed && m.content && <ResponseEditCard content={m.content} />}
 
+      {!streaming && !waiting && !failed && m.model && <AnsweredBy model={m.model} noticeKey={m.noticeKey} />}
+
       {m.citations.length > 0 && !streaming && <Sources citations={m.citations} />}
 
       {onContinue && !streaming && !waiting && (
@@ -208,6 +211,20 @@ function AssistantMessage({
       )}
       </EditableResponseProvider>
     </article>
+  )
+}
+
+/** "Answered by <model>" plus billing's downgrade notice when a Best request was served by a Smart model. */
+function AnsweredBy({ model, noticeKey }: { model: string; noticeKey?: string | null }) {
+  const models = useMyModels().data
+  const label = models?.groups.flatMap((g) => g.models).find((x) => x.id === model)?.label ?? model
+  return (
+    <div className="mt-2 space-y-1 text-xs text-ink-3">
+      <p>Answered by {label}</p>
+      {noticeKey === 'limit.best_switched' && (
+        <p role="note" className="text-warn">You've used today's Best-model messages, so this answer uses a Smart model.</p>
+      )}
+    </div>
   )
 }
 

@@ -58,11 +58,18 @@ export interface ApiMessage {
   citations?: Citation[]
   /** Only on POST .../messages and .../regenerate: the assistant id the reply streams under. */
   response_message_id?: string | null
+  /** Assistant messages: the catalog model id that answered, and its group (fast/smart/best/ultra). */
+  model?: string | null
+  model_group?: string | null
+  /** What billing granted for this turn; `notice_key` is e.g. limit.best_switched when a Best request was downgraded. */
+  billing?: { granted_group?: string | null; granted_model?: string | null; downgraded?: boolean; remaining_today?: number | null; funded_by?: string | null; enforcement?: string | null; notice_key?: string | null } | null
 }
 
 export interface SendMessageBody {
   content: string
   mode?: string
+  /** 'auto' or a catalog model id. Omitted = the saved default model applies. */
+  model?: string
   selected_tools?: string[]
   /** Ask the model to include a Mermaid/Manim diagram when it would help. Omitted when off. */
   include_diagrams?: boolean
