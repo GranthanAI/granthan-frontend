@@ -97,6 +97,12 @@ function defaultMessage(kind: ApiErrorKind): string {
 export function parseErrorBody(status: number, body: unknown): ApiError {
   const kind = kindFromStatus(status)
   if (kind === 'server') {
+    // A 503 from a service's billing guard is a typed denial (billing_unavailable): keep it for the notice.
+    const denied = body && typeof body === 'object' ? (body as Record<string, unknown>).detail : undefined
+    if (status === 503 && billingDenialOf(denied)) {
+      const d = billingDenialOf(denied)!
+      return new ApiError(kind, d.message || 'Billing is temporarily unavailable. Please try again shortly.', status, {}, denied)
+    }
     return new ApiError(
       kind,
       status === 503

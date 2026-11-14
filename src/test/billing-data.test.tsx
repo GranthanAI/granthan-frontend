@@ -23,10 +23,12 @@ describe('billing denial parsing', () => {
       expect(e.message).toBe(`backend says ${reason}`)
     })
   }
-  it('billing_unavailable (503) never throws; server bodies stay hidden', () => {
-    const e = parseErrorBody(503, denial('billing_unavailable'))
-    expect(e.billingDenial).toBeNull()
-    expect(e.message).toMatch(/temporarily unavailable/)
+  it('billing_unavailable (503) keeps its typed denial; other server bodies stay hidden', () => {
+    const e = parseErrorBody(503, denial('billing_unavailable', { message_key: 'billing.degraded' }))
+    expect(e.billingDenial).toMatchObject({ reason: 'billing_unavailable', message_key: 'billing.degraded' })
+    const other = parseErrorBody(500, { detail: { code: 'billing_denied', reason: 'plan_limit', message: 'internal' } })
+    expect(other.billingDenial).toBeNull()
+    expect(other.message).not.toMatch(/internal/)
   })
   it('is null for other errors and falls back to the default message', () => {
     expect(parseErrorBody(403, { detail: 'nope' }).billingDenial).toBeNull()

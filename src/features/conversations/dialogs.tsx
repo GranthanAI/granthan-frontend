@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMatch, useNavigate } from 'react-router-dom'
 import { create } from 'zustand'
 import { errorMessage } from '@/lib/errors'
+import { reportBillingError } from '@/stores/billing-notice.store'
 import { titleSchema } from '@/lib/validation'
 import { ConfirmDialog, Dialog, toast } from '@/components/ui/overlays'
 import { Button, TextField } from '@/components/ui/primitives'
@@ -133,6 +134,13 @@ export function ConversationDialogs() {
               onSuccess: (created) => {
                 close()
                 navigate(`/c/${created.conversation_id}`)
+              },
+              // branches_per_tree: the refusal is shown above this conversation's composer, with Upgrade
+              onError: (e) => {
+                if (reportBillingError(c.conversation_id, e)) {
+                  create.reset()
+                  close()
+                }
               },
             },
           )

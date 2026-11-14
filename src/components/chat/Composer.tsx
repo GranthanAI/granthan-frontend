@@ -13,6 +13,7 @@ import { usePreferences } from '@/features/preferences/usePreferences'
 import { ToolPicker } from './ToolPicker'
 import { ModelPicker } from './ModelPicker'
 import { UsageMeter } from './UsageMeter'
+import { ComposerNotices } from '@/components/billing/BillingNotice'
 import { useDraftStore } from '@/stores/draft.store'
 import { useUiStore } from '@/stores/ui.store'
 import { useQuoteStore } from '@/stores/quote.store'
@@ -136,6 +137,8 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
           </button>
         </div>
       )}
+
+      <ComposerNotices noticeKey={draftKey} />
 
       <div
         className={cn(

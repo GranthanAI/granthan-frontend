@@ -5,6 +5,8 @@ import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { SegmentedControl, SettingsSection, TextAreaField } from '@/components/settings/controls'
 import { useArchiveCustomMode, useCreateCustomMode, useCustomModes, useUpdateCustomMode } from '@/features/custom-modes/useCustomModes'
 import { ApiError, toApiError } from '@/lib/errors'
+import { BillingNotice } from '@/components/billing/BillingNotice'
+import type { BillingDenied } from '@/types/billing'
 import type { CustomMode, CustomModeInput, ExecutionStyle } from '@/types/api'
 
 const EMPTY: CustomModeInput = { name: '', description: '', instructions: '', execution_style: 'direct' }
@@ -31,6 +33,8 @@ export function CustomModesSettings() {
   const [draft, setDraft] = useState<CustomModeInput>(EMPTY)
   const [formError, setFormError] = useState('')
   const [conflict, setConflict] = useState(false)
+  // custom_modes / mode_instruction_chars refusals: an inline notice with Upgrade, not just red text
+  const [denial, setDenial] = useState<BillingDenied | null>(null)
   const [toArchive, setToArchive] = useState<CustomMode | null>(null)
 
   const limits = list.data?.limits ?? DEFAULT_LIMITS
@@ -41,6 +45,7 @@ export function CustomModesSettings() {
 
   const open = (mode: CustomMode | 'new') => {
     setFormError('')
+    setDenial(null)
     setConflict(false)
     setDraft(mode === 'new' ? EMPTY : { name: mode.name, description: mode.description, instructions: mode.instructions, execution_style: mode.execution_style })
     setEditing(mode)
@@ -61,6 +66,7 @@ export function CustomModesSettings() {
   const save = async () => {
     if (saving || !valid || !editing) return
     setFormError('')
+    setDenial(null)
     try {
       if (editing === 'new') await create.mutateAsync({ ...draft, name: draft.name.trim() })
       else await update.mutateAsync({ id: editing.mode_id, version: editing.version, ...draft, name: draft.name.trim() })
@@ -70,6 +76,8 @@ export function CustomModesSettings() {
       if (e instanceof ApiError && e.status === 409 && editing !== 'new' && /changed elsewhere/i.test(e.message)) {
         setConflict(true)
         setFormError('This mode was changed elsewhere. Your edits are kept below; load the latest version to continue.')
+      } else if (toApiError(e).billingDenial) {
+        setDenial(toApiError(e).billingDenial)
       } else {
         setFormError(errorText(e))
       }
@@ -148,6 +156,7 @@ export function CustomModesSettings() {
               void save()
             }}
           >
+            {denial && <BillingNotice denial={denial} onDismiss={() => setDenial(null)} />}
             {formError && (
               <Alert tone="error" action={conflict ? <Button size="sm" onClick={loadLatest}>Load latest</Button> : undefined}>
                 {formError}

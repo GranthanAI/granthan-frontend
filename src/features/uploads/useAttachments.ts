@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { errorMessage } from '@/lib/errors'
+import { reportBillingError } from '@/stores/billing-notice.store'
+import { NEW_CHAT_DRAFT } from '@/stores/draft.store'
 import { uuid } from '@/lib/utils'
 import { validateFile } from '@/lib/validation'
 import { fileService } from '@/services/file.service'
@@ -86,7 +88,10 @@ export function useAttachments(conversationId: string | null) {
         patch(localId, { documentId: document_id, phase: 'processing', progress: 1, backendStatus: 'UPLOADED' })
         await poll(localId, document_id, ctrl.signal)
       } catch (e) {
-        if (!ctrl.signal.aborted) patch(localId, { phase: 'upload_failed', error: errorMessage(e) })
+        if (ctrl.signal.aborted) return
+        // A plan limit (file size, storage, credits) is explained above the composer; the chip still shows it failed.
+        reportBillingError(conversationId ?? NEW_CHAT_DRAFT, e)
+        patch(localId, { phase: 'upload_failed', error: errorMessage(e) })
       }
     },
     [conversationId, patch, poll],

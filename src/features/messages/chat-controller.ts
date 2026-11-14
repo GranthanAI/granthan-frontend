@@ -5,6 +5,8 @@ import { openConversationStream, type OpenedStream } from '@/lib/streaming'
 import { uuid } from '@/lib/utils'
 import { invalidateBilling } from '@/features/billing/hooks'
 import { modelForRequest } from '@/features/billing/model-selection'
+import { reportBillingError, useBillingNoticeStore } from '@/stores/billing-notice.store'
+import { useDraftStore } from '@/stores/draft.store'
 import { messageService } from '@/services/message.service'
 import { isBusy, useChatStore } from '@/stores/chat.store'
 import { useUiStore } from '@/stores/ui.store'
@@ -196,6 +198,7 @@ function waitForOutcome(
             {
               onEvent: (e) => assembler.push(e),
               onServerError: () => {},
+              onNotice: (n) => useBillingNoticeStore.getState().showQuiet(cid, n),
             },
             signal,
             { messageId, since: assembler.lastEventId ?? '0' },
@@ -254,7 +257,7 @@ interface RunArgs {
   cid: string
   trigger: (signal: AbortSignal) => Promise<ApiMessage>
   replaces?: string
-  onTriggerError: (message: string) => void
+  onTriggerError: (message: string, error: unknown) => void
 }
 
 async function runTurn({ qc, cid, trigger, replaces, onTriggerError }: RunArgs) {
@@ -273,7 +276,7 @@ async function runTurn({ qc, cid, trigger, replaces, onTriggerError }: RunArgs) 
     try {
       ack = await trigger(abort.signal)
     } catch (e) {
-      onTriggerError(errorMessage(e))
+      onTriggerError(errorMessage(e), e)
       patch(cid, (r) => ({ ...r, assistant: null }))
       return
     }
@@ -355,11 +358,19 @@ export function sendMessage(
         idempotencyKey,
         signal,
       ),
-    onTriggerError: (message) =>
+    onTriggerError: (message, error) => {
+      // A billing refusal is shown as an inline notice above the composer and the text goes back into the draft.
+      if (reportBillingError(cid, error)) {
+        const draft = useDraftStore.getState()
+        if (!draft.drafts[cid]) draft.set(cid, content)
+        useChatStore.getState().patch(cid, (r) => ({ ...r, pendingUser: null }))
+        return
+      }
       useChatStore.getState().patch(cid, (r) => ({
         ...r,
         pendingUser: r.pendingUser ? { ...r.pendingUser, status: 'failed', error: message } : null,
-      })),
+      }))
+    },
   })
   return true
 }
@@ -386,11 +397,13 @@ export function regenerate(qc: QueryClient, cid: string, assistantMessageId: str
     cid,
     replaces: assistantMessageId,
     trigger: () => messageService.regenerate(cid, assistantMessageId, model),
-    onTriggerError: (message) =>
+    onTriggerError: (message, error) => {
+      reportBillingError(cid, error)
       useChatStore.getState().patch(cid, (r) => ({
         ...r,
         assistant: { messageId: assistantMessageId, text: '', phase: 'failed', error: message },
-      })),
+      }))
+    },
   })
   return true
 }

@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { toast } from '@/components/ui/overlays'
 import { errorMessage } from '@/lib/errors'
+import { reportBillingError } from '@/stores/billing-notice.store'
 import { branchTitle } from '@/lib/quote'
 import { useQuoteStore } from '@/stores/quote.store'
 import { useCreateConversation } from './hooks'
@@ -24,7 +25,8 @@ export function useSelectionBranch(conversationId: string) {
       setQuote(c.conversation_id, selection)
       navigate(`/c/${c.conversation_id}`)
     } catch (e) {
-      toast(errorMessage(e), 'error')
+      // branches_per_tree etc.: an inline notice above this conversation's composer instead of a toast
+      if (!reportBillingError(conversationId, e)) toast(errorMessage(e), 'error')
     }
   }
 

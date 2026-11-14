@@ -5,6 +5,8 @@ import { Alert, Button, EmptyState, Skeleton } from '@/components/ui/primitives'
 import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { SettingsSection, TextAreaField, Toggle } from '@/components/settings/controls'
 import { toApiError } from '@/lib/errors'
+import { BillingNotice } from '@/components/billing/BillingNotice'
+import type { BillingDenied } from '@/types/billing'
 import { qk } from '@/lib/query-keys'
 import { memoryService } from '@/services/memory.service'
 import type { MemoryFact, MemoryFactList } from '@/types/api'
@@ -18,6 +20,12 @@ export function MemorySettingsPage() {
   const [deleting, setDeleting] = useState<MemoryFact | null>(null)
   const [clearing, setClearing] = useState(false)
   const [error, setError] = useState('')
+  const [denial, setDenial] = useState<BillingDenied | null>(null)
+  const fail = (e: unknown) => {
+    const d = toApiError(e).billingDenial
+    if (d) setDenial(d)
+    else setError(toApiError(e).message)
+  }
 
   const setList = (fn: (l: MemoryFactList) => MemoryFactList) =>
     qc.setQueryData<MemoryFactList>(qk.memoryFacts, (l) => (l ? fn(l) : l))
@@ -37,7 +45,7 @@ export function MemorySettingsPage() {
       setEditing(null)
       toast('Memory updated', 'success')
     },
-    onError: (e) => setError(toApiError(e).message),
+    onError: fail,
   })
   const remove = useMutation({
     mutationFn: (fact: MemoryFact) => memoryService.remove(fact),
@@ -46,7 +54,7 @@ export function MemorySettingsPage() {
       setDeleting(null)
       toast('Memory deleted', 'success')
     },
-    onError: (e) => setError(toApiError(e).message),
+    onError: fail,
   })
   const clear = useMutation({
     mutationFn: () => memoryService.clear(),
@@ -55,7 +63,7 @@ export function MemorySettingsPage() {
       setClearing(false)
       toast('All saved memory deleted', 'success')
     },
-    onError: (e) => setError(toApiError(e).message),
+    onError: fail,
   })
 
   const data = facts.data
@@ -84,6 +92,7 @@ export function MemorySettingsPage() {
               disabled={pause.isPending}
               onChange={(v) => pause.mutate(v)}
             />
+            {denial && <BillingNotice denial={denial} onDismiss={() => setDenial(null)} />}
             {error && <Alert tone="error">{error}</Alert>}
             {data.items.length === 0 ? (
               <EmptyState title="Nothing saved yet">Facts will appear here once GranthanAI learns them from your chats.</EmptyState>

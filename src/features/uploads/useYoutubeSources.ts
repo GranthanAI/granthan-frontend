@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, errorMessage } from '@/lib/errors'
+import { reportBillingError } from '@/stores/billing-notice.store'
+import { NEW_CHAT_DRAFT } from '@/stores/draft.store'
 import { uuid } from '@/lib/utils'
 import { fileService } from '@/services/file.service'
 import { youtubeService, type YoutubeSource } from '@/services/youtube.service'
@@ -97,11 +99,12 @@ export function useYoutubeSources(conversationId: string | null) {
         await poll(localId, s.document_id, ctrl.signal)
       } catch (e) {
         if (ctrl.signal.aborted) return
-        const reason = e instanceof ApiError && e.status === 429 ? 'You have added many videos recently. Try again later.' : errorMessage(e)
+        const billing = reportBillingError(conversationId ?? NEW_CHAT_DRAFT, e)
+        const reason = billing ? errorMessage(e) : e instanceof ApiError && e.status === 429 ? 'You have added many videos recently. Try again later.' : errorMessage(e)
         patch(localId, { phase: e instanceof ApiError && e.kind === 'network' ? 'temporary' : 'failed', message: reason })
       }
     },
-    [apply, patch, poll],
+    [apply, patch, poll, conversationId],
   )
 
   /** Adds links. Returns the ones that were refused locally (invalid or already attached) so a dialog can explain. */

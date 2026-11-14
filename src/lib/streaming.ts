@@ -3,6 +3,7 @@ import { ApiError, parseErrorBody } from './errors'
 import { refreshSession } from './api-client'
 import { getAccessToken } from '@/stores/auth.store'
 import type { StreamEvent } from '@/types/api'
+import type { StreamNotice } from '@/types/billing'
 
 const LINE_BREAK = /\r\n|\n|\r/
 
@@ -47,10 +48,26 @@ export class SseParser {
   }
 }
 
+/** A notice frame: needs a notice_key; numbers and strings are kept only when well-typed. */
+export function parseNotice(raw: unknown): StreamNotice | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  if (typeof r.notice_key !== 'string' || !r.notice_key) return null
+  return {
+    notice_key: r.notice_key,
+    metric: typeof r.metric === 'string' ? r.metric : undefined,
+    used: typeof r.used === 'number' ? r.used : undefined,
+    limit: typeof r.limit === 'number' ? r.limit : undefined,
+    resets_at: typeof r.resets_at === 'string' ? r.resets_at : undefined,
+  }
+}
+
 export interface StreamHandlers {
   onEvent: (e: StreamEvent) => void
   /** Server-sent `event: error` payload (e.g. cache offline). */
   onServerError?: (message: string) => void
+  /** Server-sent `event: notice` (e.g. usage.threshold_80). Never part of the answer; absent handler = ignored. */
+  onNotice?: (notice: StreamNotice) => void
 }
 
 export interface OpenedStream {
@@ -129,7 +146,10 @@ export async function openConversationStream(
     try {
       const parsed = JSON.parse(data)
       if (event === 'error') handlers.onServerError?.(String(parsed?.message ?? 'Stream error'))
-      else handlers.onEvent(parsed as StreamEvent)
+      else if (event === 'notice') {
+        const n = parseNotice(parsed)
+        if (n) handlers.onNotice?.(n)
+      } else handlers.onEvent(parsed as StreamEvent)
     } catch {
       // Ignore malformed frames rather than killing the stream.
     }

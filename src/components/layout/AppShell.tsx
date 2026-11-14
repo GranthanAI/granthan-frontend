@@ -12,6 +12,7 @@ import { useUiStore } from '@/stores/ui.store'
 import { ContextPanel } from './ContextPanel'
 import { PanelResizer } from './PanelResizer'
 import { Sidebar } from './Sidebar'
+import { BillingBanners } from '@/components/billing/BillingBanners'
 
 export function AppShell() {
   const { id } = useParams()
@@ -74,6 +75,7 @@ export function AppShell() {
 
       <div className="flex min-w-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
+          <BillingBanners />
           <header className="flex h-12 shrink-0 items-center gap-1 border-b border-line px-2">
             <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileSidebar(true)} aria-label="Open conversation history">
               <MenuIcon className="size-5" />
