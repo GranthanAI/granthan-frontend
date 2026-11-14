@@ -81,6 +81,11 @@ export function MemorySettingsPage() {
         )}
         {data && (
           <>
+            {typeof data.facts_used === 'number' && typeof data.facts_limit === 'number' && (
+              <p data-testid="facts-used" className="text-sm text-ink-2">
+                {data.facts_limit < 0 ? `${data.facts_used} facts used · Unlimited` : `${data.facts_used} of ${data.facts_limit} facts used`}
+              </p>
+            )}
             <Toggle
               label="Use and learn memory"
               description={

@@ -2,12 +2,12 @@ import { useState, type ReactNode } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/query-keys'
-import { Brain, FileText, Wand2, KeyRound, Monitor, Moon, Palette, Sparkles, Sun, Type, UserRound } from 'lucide-react'
+import { Brain, CreditCard, FileText, Wand2, KeyRound, Monitor, Moon, Palette, Sparkles, Sun, Type, UserRound } from 'lucide-react'
 import { Alert, Button, TextField } from '@/components/ui/primitives'
-import { toast } from '@/components/ui/overlays'
+import { Dialog, toast } from '@/components/ui/overlays'
 import { toApiError } from '@/lib/errors'
 import { passwordSchema } from '@/lib/validation'
 import { authService } from '@/services/auth.service'
@@ -21,8 +21,9 @@ import { MemorySettingsPage } from '@/components/settings/MemorySettingsPage'
 import { DocumentsSettings } from '@/components/settings/DocumentsSettings'
 import { CustomModesSettings } from '@/components/settings/CustomModesSettings'
 import { Toggle } from '@/components/settings/controls'
+import { BillingSettings } from '@/components/settings/BillingSettings'
 
-export { AiPreferencesSettings, MemorySettingsPage, DocumentsSettings, CustomModesSettings }
+export { AiPreferencesSettings, MemorySettingsPage, DocumentsSettings, CustomModesSettings, BillingSettings }
 
 const profileSchema = z.object({
   full_name: z.string().trim().min(2, 'At least 2 characters').max(100),
@@ -39,6 +40,7 @@ export const SETTINGS_PAGES = [
   { path: 'custom-modes', label: 'Custom modes', icon: Wand2 },
   { path: 'memory', label: 'Memory', icon: Brain },
   { path: 'documents', label: 'Documents', icon: FileText },
+  { path: 'billing', label: 'Billing', icon: CreditCard },
   { path: 'security', label: 'Security', icon: KeyRound },
   { path: 'appearance', label: 'Appearance', icon: Palette },
   { path: 'text-style', label: 'Text style', icon: Type },
@@ -167,7 +169,70 @@ export function SecuritySettings() {
       </form>
     </Section>
     <SessionsSettings />
+    <DeleteAccount />
     </>
+  )
+}
+
+/** Permanently deletes the account after re-checking the password. */
+export function DeleteAccount() {
+  const [open, setOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+  const navigate = useNavigate()
+  const qc = useQueryClient()
+
+  const close = () => {
+    if (pending) return
+    setOpen(false)
+    setPassword('')
+    setError('')
+  }
+  const submit = async () => {
+    if (!password || pending) return
+    setPending(true)
+    setError('')
+    try {
+      await authService.deleteAccount(password)
+    } catch (e) {
+      const err = toApiError(e)
+      setError(err.status === 401 ? 'That password is not correct.' : err.message)
+      setPending(false)
+      return
+    }
+    // The account is gone: drop the session and everything cached for it, then say so on the login page.
+    useAuthStore.getState().endSession('Your account has been deleted.')
+    qc.clear()
+    navigate('/login', { replace: true, state: { notice: 'Your account has been deleted.' } })
+  }
+
+  return (
+    <Section title="Delete account" description="Permanently delete your account and everything in it.">
+      <Button variant="danger" onClick={() => setOpen(true)}>Delete account</Button>
+      <Dialog
+        open={open}
+        onClose={close}
+        title="Delete your account?"
+        description="This cannot be undone."
+        footer={
+          <>
+            <Button onClick={close} disabled={pending}>Cancel</Button>
+            <Button variant="danger" onClick={() => void submit()} loading={pending} disabled={!password}>Delete my account</Button>
+          </>
+        }
+      >
+        <form noValidate className="space-y-3" onSubmit={(e) => { e.preventDefault(); void submit() }}>
+          <ul className="list-disc space-y-1 pl-5 text-sm text-ink-2">
+            <li>Your subscription is cancelled.</li>
+            <li>Your conversations, files, memory and other data are deleted after 30 days.</li>
+            <li>You are signed out everywhere, and this can't be undone.</li>
+          </ul>
+          {error && <Alert tone="error">{error}</Alert>}
+          <TextField label="Confirm with your password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+        </form>
+      </Dialog>
+    </Section>
   )
 }
 

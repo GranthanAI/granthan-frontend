@@ -4,6 +4,7 @@ import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { SegmentedControl, SelectField, SettingsSection, TextAreaField } from '@/components/settings/controls'
 import { usePreferences, useResetPreferences, useUpdatePreferences } from '@/features/preferences/usePreferences'
 import { useTools } from '@/features/tools/useTools'
+import { useMyModels } from '@/features/billing/hooks'
 import { useAllModes } from '@/features/custom-modes/useCustomModes'
 import { ApiError, toApiError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -11,7 +12,7 @@ import type { Preferences, PreferencesPatch } from '@/types/api'
 
 type Draft = Pick<
   Preferences,
-  'default_mode' | 'default_tools' | 'answer_length' | 'tone' | 'language' | 'personal_instructions' | 'citations' | 'document_context'
+  'default_mode' | 'default_tools' | 'answer_length' | 'tone' | 'language' | 'personal_instructions' | 'citations' | 'document_context' | 'default_model'
 >
 
 const pick = (p: Preferences): Draft => ({
@@ -23,6 +24,7 @@ const pick = (p: Preferences): Draft => ({
   personal_instructions: p.personal_instructions,
   citations: p.citations,
   document_context: p.document_context,
+  default_model: p.default_model ?? 'auto',
 })
 
 const sameTools = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i])
@@ -37,6 +39,7 @@ export function AiPreferencesSettings() {
   const [loadedVersion, setLoadedVersion] = useState<number | null>(null)
   const [error, setError] = useState('')
   const [confirmReset, setConfirmReset] = useState(false)
+  const myModels = useMyModels()
 
   // (Re)load the form whenever the saved version changes (first load, save, other device, 409 refetch).
   const saved = prefs.data
@@ -68,7 +71,7 @@ export function AiPreferencesSettings() {
   const patch: PreferencesPatch = {}
   if (draft.default_mode !== original.default_mode) patch.default_mode = draft.default_mode
   if (!sameTools(draft.default_tools, original.default_tools)) patch.default_tools = draft.default_tools
-  for (const k of ['answer_length', 'tone', 'language', 'personal_instructions', 'citations', 'document_context'] as const) {
+  for (const k of ['answer_length', 'tone', 'language', 'personal_instructions', 'citations', 'document_context', 'default_model'] as const) {
     if (draft[k] !== original[k]) (patch as Record<string, unknown>)[k] = draft[k]
   }
   const dirty = Object.keys(patch).length > 0
@@ -131,6 +134,25 @@ export function AiPreferencesSettings() {
           ]}
           hint={tools.isError ? 'Could not load the available modes.' : undefined}
         />
+
+        {Array.isArray(myModels.data?.groups) && (
+          <SelectField
+            label="Default model"
+            value={draft.default_model ?? 'auto'}
+            onChange={(v) => set('default_model', v)}
+            options={[
+              { value: 'auto', label: 'Auto (let GranthanAI choose)' },
+              ...myModels.data.groups.flatMap((g) =>
+                g.models.filter((m) => g.allowed && m.allowed).map((m) => ({ value: m.id, label: `${m.label} (${g.group})` })),
+              ),
+              ...((draft.default_model ?? 'auto') !== 'auto' &&
+              !myModels.data.groups.some((g) => g.allowed && g.models.some((m) => m.allowed && m.id === draft.default_model))
+                ? [{ value: draft.default_model!, label: `${draft.default_model} (not in your plan)` }]
+                : []),
+            ]}
+            hint="New conversations start with this model. You can still choose a different one for a conversation in the composer."
+          />
+        )}
 
         <fieldset>
           <legend className="mb-1.5 text-sm font-medium text-ink">Default tools</legend>

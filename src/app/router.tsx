@@ -25,6 +25,7 @@ const AiPreferencesSettings = settingsPage('AiPreferencesSettings')
 const MemorySettingsPage = settingsPage('MemorySettingsPage')
 const DocumentsSettings = settingsPage('DocumentsSettings')
 const CustomModesSettings = settingsPage('CustomModesSettings')
+const BillingSettings = settingsPage('BillingSettings')
 
 /** Restores the session once on first load from the HttpOnly refresh cookie. */
 let restoreStarted = false
@@ -89,6 +90,7 @@ export const routes = [
               { path: 'custom-modes', element: <Suspense fallback={null}><CustomModesSettings /></Suspense> },
               { path: 'memory', element: <Suspense fallback={null}><MemorySettingsPage /></Suspense> },
               { path: 'documents', element: <Suspense fallback={null}><DocumentsSettings /></Suspense> },
+              { path: 'billing', element: <Suspense fallback={null}><BillingSettings /></Suspense> },
               { path: 'security', element: <Suspense fallback={null}><SecuritySettings /></Suspense> },
               { path: 'appearance', element: <Suspense fallback={null}><AppearanceSettings /></Suspense> },
               { path: 'text-style', element: <Suspense fallback={null}><TextStyleSettingsPage /></Suspense> },

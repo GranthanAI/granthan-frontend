@@ -53,10 +53,11 @@ export function LoginPage() {
   const location = useLocation()
   const qc = useQueryClient()
   const expired = useAuthStore((s) => s.expired)
+  const endedNotice = useAuthStore((s) => s.notice)
   const [formError, setFormError] = useState('')
   const [needsVerify, setNeedsVerify] = useState(false)
   const from = (location.state as { from?: string } | null)?.from
-  const flash = (location.state as { notice?: string } | null)?.notice
+  const flash = (location.state as { notice?: string } | null)?.notice ?? endedNotice
   const form = useForm<LoginValues>({ resolver: zodResolver(loginSchema), defaultValues: { email: '', password: '' } })
 
   const onSubmit = form.handleSubmit(async (v) => {

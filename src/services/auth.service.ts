@@ -1,4 +1,4 @@
-import { api, refreshSession } from '@/lib/api-client'
+import { api, refreshSession, request } from '@/lib/api-client'
 import { useAuthStore } from '@/stores/auth.store'
 import type { DeviceSession, MessageResult, TokenResponse, User } from '@/types/api'
 
@@ -21,6 +21,13 @@ export const authService = {
   },
 
   me: () => api.get<User>('/auth/me'),
+
+  /**
+   * Permanently deletes the account after re-checking the password (204). A wrong password is a 401 that must NOT sign
+   * the user out, so the session survives it. The caller clears local state on success.
+   */
+  deleteAccount: (password: string) =>
+    request<void>('/auth/me', { method: 'DELETE', body: { password }, sessionSurvives401: true }),
 
   forgotPassword: (email: string) =>
     api.post<MessageResult>('/auth/forgot-password', { email }, { auth: false }),

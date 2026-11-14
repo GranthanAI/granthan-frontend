@@ -300,6 +300,9 @@ export interface MemoryFact {
 export interface MemoryFactList {
   items: MemoryFact[]
   memory_enabled: boolean
+  /** Facts stored / the plan's cap (-1 = unlimited; null or absent while plan limits are off). */
+  facts_used?: number
+  facts_limit?: number | null
 }
 
 /** What a branch inherits from its ancestors (GET /conversations/{id}/context). */

@@ -12,6 +12,8 @@ export interface RequestOptions {
   /** Attach the bearer token and refresh once on 401. Default true. */
   auth?: boolean
   timeoutMs?: number
+  /** A 401 here means a wrong secret (e.g. the password in a re-check), not an expired session: do not sign the user out. */
+  sessionSurvives401?: boolean
 }
 
 export function buildUrl(path: string, query?: RequestOptions['query']): string {
@@ -126,7 +128,7 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
   const body = await readBody(res)
   if (!res.ok) {
     const err = parseErrorBody(res.status, body)
-    if (res.status === 401 && opts.auth !== false) useAuthStore.getState().clear({ expired: true })
+    if (res.status === 401 && opts.auth !== false && !opts.sessionSurvives401) useAuthStore.getState().clear({ expired: true })
     throw err
   }
   return body as T
