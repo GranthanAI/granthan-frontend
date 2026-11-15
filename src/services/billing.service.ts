@@ -2,6 +2,11 @@ import { api, requestBlob } from '@/lib/api-client'
 import { uuid } from '@/lib/utils'
 import type {
   BillingMe,
+  TopupProof,
+  TopupRequest,
+  TopupResponse,
+  Wallet,
+  WalletTransaction,
   BillingProfile,
   BillingProfileInput,
   ChangeQuote,
@@ -39,6 +44,13 @@ export const billingService = {
   profile: (signal?: AbortSignal) => api.get<BillingProfile>('/billing/me/billing-profile', { signal }),
   saveProfile: (body: BillingProfileInput) => api.put<BillingProfile>('/billing/me/billing-profile', body),
   gstStates: (signal?: AbortSignal) => api.get<{ states: GstState[] }>('/billing/gst-states', { signal, auth: false }),
+
+  /** 404 = Pay as you Go is off: the caller hides everything and shows no error. */
+  wallet: (signal?: AbortSignal) => api.get<{ wallet: Wallet | null }>('/billing/wallet', { signal }),
+  walletTransactions: (limit = 200, signal?: AbortSignal) => api.get<{ transactions: WalletTransaction[] }>('/billing/wallet/transactions', { signal, query: { limit } }),
+  topup: (body: TopupRequest, key?: string) => api.post<TopupResponse>('/billing/wallet/topups', body, idem(key)),
+  verifyTopup: (body: TopupProof, key: string) => api.post<{ balance_paise: number }>('/billing/wallet/topups/verify', body, idem(key)),
+  saveWalletCap: (monthlyCapPaise: number | null) => api.put<{ monthly_cap_paise: number | null }>('/billing/wallet/settings', { monthly_cap_paise: monthlyCapPaise }),
 
   checkout: (body: CheckoutRequest, key?: string) => api.post<CheckoutResponse>('/billing/checkout', body, idem(key)),
   verify: (body: VerifyRequest, key: string) => api.post<VerifyResponse>('/billing/checkout/verify', body, idem(key)),

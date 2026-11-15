@@ -192,6 +192,44 @@ export interface GstState {
   name: string
 }
 
+export interface WalletLot {
+  amount_paise: number
+  remaining_paise: number
+  expires_at: string
+}
+/** GET /billing/wallet -> { wallet }: null before the first top-up. Amounts are GST-inclusive paise. */
+export interface Wallet {
+  balance_paise: number | null
+  monthly_cap_paise: number | null
+  month_to_date_paise?: number | null
+  lots?: WalletLot[]
+}
+export interface WalletTransaction {
+  occurred_at: string
+  kind: string
+  ref_type?: string
+  ref_id?: string
+  /** positive for a top-up, negative for spending */
+  amount_paise: number
+}
+export interface TopupRequest {
+  pack_code: string
+  state_code?: string
+  email?: string
+}
+export interface TopupResponse {
+  order_id: string
+  amount_paise: number
+  provider: 'razorpay' | 'simulator'
+  simulator_url?: string
+  razorpay: RazorpayCheckoutOptions & { amount?: number; currency?: string }
+}
+export interface TopupProof {
+  razorpay_order_id: string
+  razorpay_payment_id: string
+  razorpay_signature: string
+}
+
 export interface CheckoutResponse extends Partial<ChangeQuote> {
   subscription_id: string
   status: string

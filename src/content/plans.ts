@@ -27,6 +27,15 @@ export const YES_ROWS: ReadonlyArray<{ label: string; detail?: string }> = [
   { label: 'Exports', detail: 'PDF, Markdown, ZIP' },
 ]
 
+/** How Pay as you Go works (words only: prices, packs and validity come from the API). */
+export const PAYG_COPY = {
+  how: 'Top up credits and spend them only when a message needs more than your plan covers. No subscription.',
+  ultra: 'Ultra models are unlocked.',
+  validity: (months: number) => `Credits are valid for ${months} months.`,
+  perMessage: (price: string) => `uses credits · ${price} per message`,
+  topUp: 'Top up credits',
+} as const
+
 export const ROW_LABELS = {
   priceMonth: 'Price per month',
   priceYear: 'Yearly option',
@@ -90,6 +99,12 @@ export const LIMIT_COPY: Record<string, LimitCopy> = {
 export const limitCopy = (messageKey: string | undefined | null): LimitCopy | null => (messageKey ? (LIMIT_COPY[messageKey] ?? null) : null)
 
 /** Quiet usage notices from the stream, by metric (80% / 100%). */
+export const NOTICE_ACTIONS = {
+  topUp: 'Top up',
+  raiseCap: 'Raise your cap',
+  askAdmin: 'Ask your organisation admin to raise it.',
+} as const
+
 export const SPEND_CAP_NOTICE = {
   80: "You've used 80% of your monthly spend cap.",
   100: 'You\'ve reached your monthly spend cap. Sending is paused until the cap is raised or next month.',

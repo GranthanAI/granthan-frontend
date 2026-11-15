@@ -1,4 +1,5 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query'
+import { ApiError } from '@/lib/errors'
 import { qk } from '@/lib/query-keys'
 import { billingService } from '@/services/billing.service'
 import { useAuthStore } from '@/stores/auth.store'
@@ -68,4 +69,28 @@ export function useGstStates() {
 export function useBillingProfile() {
   const enabled = useSignedIn()
   return useQuery({ queryKey: qk.billingProfile, queryFn: ({ signal }) => billingService.profile(signal), enabled, staleTime: 30_000, retry: 1 })
+}
+
+/** The Pay as you Go entry of /billing/plans, when the API lists it. */
+export function usePaygPlan() {
+  const plans = usePlans().data?.plans
+  return Array.isArray(plans) ? plans.find((p) => p.code === 'payg') : undefined
+}
+
+/**
+ * Pay as you Go is on only when the plans list payg AND the wallet routes answer 200 (404 = off: nothing is shown, no error).
+ * `known` is false until the wallet has answered, so callers can avoid flashing credits UI.
+ */
+export function useWallet() {
+  const signedIn = useSignedIn()
+  const payg = usePaygPlan()
+  const q = useQuery({
+    queryKey: qk.wallet,
+    queryFn: ({ signal }) => billingService.wallet(signal),
+    enabled: signedIn && !!payg,
+    staleTime: 30_000,
+    retry: (n, e) => !(e instanceof ApiError && e.status === 404) && n < 1,
+  })
+  const off = !payg || (q.isError && q.error instanceof ApiError && q.error.status === 404)
+  return { enabled: !!payg && signedIn && !off && q.isSuccess, off, known: q.isSuccess || q.isError, wallet: q.data?.wallet ?? null, payg, query: q }
 }

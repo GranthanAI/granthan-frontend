@@ -1,7 +1,7 @@
 import { AlertCircle, Info, X } from 'lucide-react'
 import { Link, useInRouterContext } from 'react-router-dom'
-import { SPEND_CAP_NOTICE, limitCopy } from '@/content/plans'
-import { useBillingMe, usePlans } from '@/features/billing/hooks'
+import { NOTICE_ACTIONS, SPEND_CAP_NOTICE, limitCopy } from '@/content/plans'
+import { useBillingMe, usePlans, useWallet } from '@/features/billing/hooks'
 import { supportEmail } from '@/lib/config'
 import { formatIstTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -44,6 +44,7 @@ export function noticeActions(d: BillingDenied, payUrl: string | null | undefine
 export function BillingNotice({ denial, onDismiss }: { denial: BillingDenied; onDismiss?: () => void }) {
   const me = useBillingMe().data
   const a = noticeActions(denial, me?.payment_action_url)
+  const credits = useWallet().enabled // Pay as you Go is on: credits can be topped up and the cap raised
   const copy = limitCopy(denial.message_key)
   const plans = usePlans().data?.plans
   const payg = Array.isArray(plans) ? plans.find((p) => p.code === 'payg')?.payg : undefined
@@ -58,8 +59,10 @@ export function BillingNotice({ denial, onDismiss }: { denial: BillingDenied; on
         <p>{message}</p>
         {hint && <p className="opacity-90">{hint}</p>}
         {a.resets && <p className="font-medium">Resets at {formatIstTime(denial.resets_at)}</p>}
-        {(a.upgrade || a.payNow || (a.support && !!supportEmail())) && (
+        {(a.upgrade || a.payNow || (a.support && !!supportEmail()) || (credits && ['no_credit', 'spend_cap'].includes(denial.reason))) && (
           <div className="flex flex-wrap gap-2">
+            {credits && denial.reason === 'no_credit' && <Action to="/settings/billing">{NOTICE_ACTIONS.topUp}</Action>}
+            {credits && denial.reason === 'spend_cap' && <Action to="/settings/billing">{NOTICE_ACTIONS.raiseCap}</Action>}
             {a.upgrade && <Action to="/pricing">Upgrade</Action>}
             {a.payNow && <Action href={me?.payment_action_url ?? undefined}>Pay now</Action>}
             {a.support && supportEmail() && <Action href={`mailto:${supportEmail()}`}>Contact support</Action>}

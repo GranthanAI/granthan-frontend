@@ -6,6 +6,7 @@ import { Alert, Button, Skeleton, TextField } from '@/components/ui/primitives'
 import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { SettingsSection } from '@/components/settings/controls'
 import { CheckoutDialog } from '@/features/billing/CheckoutDialog'
+import { CreditsSettings } from '@/components/settings/CreditsSettings'
 import { invalidateBilling, useBillingMe, useBillingProfile, useGstStates, useInvoices, usePlans } from '@/features/billing/hooks'
 import { saveBlob, safeFileName } from '@/lib/download'
 import { toApiError, errorMessage } from '@/lib/errors'
@@ -109,6 +110,8 @@ export function BillingSettings() {
       </SettingsSection>
 
       <BillingDetails />
+
+      <CreditsSettings />
 
       <SettingsSection title="Limits" description="What your plan includes.">
         <ul className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm" aria-label="Plan limits">

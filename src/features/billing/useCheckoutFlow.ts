@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { errorMessage } from '@/lib/errors'
 import { uuid } from '@/lib/utils'
 import { billingService } from '@/services/billing.service'
+import { qk } from '@/lib/query-keys'
 import type { CheckoutResponse } from '@/types/billing'
 import { invalidateBilling } from './hooks'
 import { loadRazorpay, simulatorPayload, simulatorUrl, type PaymentProof } from './checkout-env'
@@ -21,7 +22,15 @@ const CLOSE_GRACE_MS = 800
  * `begin` MUST be called synchronously from a click handler: it opens the popup immediately (so blockers allow it) and
  * only points it at the simulator once the server has answered. The popup is closed again on any error.
  */
-export function useCheckoutFlow(opts: { email: string; onSuccess?: () => void }) {
+/** What starting a payment returns: a subscription checkout or a wallet top-up order (both carry provider and razorpay options). */
+export type PaymentStart = Pick<CheckoutResponse, 'provider' | 'simulator_url'> & { razorpay: CheckoutResponse['razorpay'] & { amount?: number; currency?: string } }
+
+export function useCheckoutFlow(opts: {
+  email: string
+  onSuccess?: () => void
+  /** How the proof is confirmed (default: a subscription's /checkout/verify). A top-up passes /wallet/topups/verify. */
+  verifyWith?: (proof: PaymentProof, idempotencyKey: string) => Promise<unknown>
+}) {
   const qc = useQueryClient()
   const [phase, setPhase] = useState<FlowPhase>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -33,10 +42,12 @@ export function useCheckoutFlow(opts: { email: string; onSuccess?: () => void })
   const proof = useRef<PaymentProof | null>(null)
   const verifyKey = useRef<string | null>(null)
   const verifying = useRef(false)
-  const last = useRef<(() => Promise<CheckoutResponse>) | null>(null)
+  const last = useRef<(() => Promise<PaymentStart>) | null>(null)
   const alive = useRef(true)
   const onSuccess = useRef(opts.onSuccess)
   onSuccess.current = opts.onSuccess
+  const verifyWith = useRef(opts.verifyWith)
+  verifyWith.current = opts.verifyWith
   const email = useRef(opts.email)
   email.current = opts.email
 
@@ -82,7 +93,7 @@ export function useCheckoutFlow(opts: { email: string; onSuccess?: () => void })
         setPhase('verifying')
       }
       try {
-        await billingService.verify(p, verifyKey.current)
+        await (verifyWith.current ?? ((proof, key) => billingService.verify({ razorpay_payment_id: proof.razorpay_payment_id, razorpay_subscription_id: proof.razorpay_subscription_id ?? '', razorpay_signature: proof.razorpay_signature }, key)))(p, verifyKey.current)
       } catch (e) {
         verifying.current = false
         fail(`We could not confirm your payment: ${errorMessage(e)} Your attempt is kept: retry to confirm it without paying again.`)
@@ -92,6 +103,7 @@ export function useCheckoutFlow(opts: { email: string; onSuccess?: () => void })
       closePopup()
       // The plan, what it unlocks and the invoices have all changed: picker unlocks at once.
       invalidateBilling(qc, { all: true })
+      void qc.invalidateQueries({ queryKey: qk.wallet }) // a top-up changes the balance; a plan change can add or drop credits' use
       if (alive.current) setPhase('success')
       onSuccess.current?.()
     },
@@ -122,7 +134,7 @@ export function useCheckoutFlow(opts: { email: string; onSuccess?: () => void })
   )
 
   const runRazorpay = useCallback(
-    async (res: CheckoutResponse) => {
+    async (res: PaymentStart) => {
       try {
         await loadRazorpay()
       } catch (e) {
@@ -134,6 +146,7 @@ export function useCheckoutFlow(opts: { email: string; onSuccess?: () => void })
         key: o.key,
         ...(o.subscription_id ? { subscription_id: o.subscription_id } : {}),
         ...(o.order_id ? { order_id: o.order_id } : {}),
+        ...(o.amount != null ? { amount: o.amount, currency: o.currency ?? 'INR' } : {}),
         name: o.name,
         description: o.description,
         prefill: { email: o.prefill?.email ?? email.current },
@@ -149,7 +162,7 @@ export function useCheckoutFlow(opts: { email: string; onSuccess?: () => void })
   )
 
   const proceed = useCallback(
-    async (res: CheckoutResponse) => {
+    async (res: PaymentStart) => {
       if (res.provider === 'simulator') {
         const url = simulatorUrl(res.simulator_url)
         if (!url) {
@@ -170,7 +183,7 @@ export function useCheckoutFlow(opts: { email: string; onSuccess?: () => void })
 
   /** Call from a click handler. `start` performs the POST that creates the checkout. */
   const begin = useCallback(
-    (start: () => Promise<CheckoutResponse>) => {
+    (start: () => Promise<PaymentStart>) => {
       last.current = start
       proof.current = null
       verifyKey.current = null // a fresh attempt gets a fresh verify key

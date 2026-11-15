@@ -2,14 +2,15 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Alert, Button, Logo, Skeleton } from '@/components/ui/primitives'
 import { CheckoutDialog, changeDirection, type CheckoutKind } from '@/features/billing/CheckoutDialog'
-import { useBillingMe, usePlans } from '@/features/billing/hooks'
+import { useBillingMe, usePlans, useWallet } from '@/features/billing/hooks'
+import { TopupDialog } from '@/features/billing/TopupDialog'
 import { errorMessage } from '@/lib/errors'
 import { formatPaise } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useRestoreSession } from '@/app/router'
 import type { BillingInterval, PlanEntry } from '@/types/billing'
 import { buildRows } from '@/features/billing/planTable'
-import { WORDS, planCopy } from '@/content/plans'
+import { PAYG_COPY, WORDS, planCopy } from '@/content/plans'
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
@@ -25,7 +26,10 @@ export function PricingPage() {
 
   // Free, Pro, Max by rank; Pay as you Go (rank 0: credits never outrank a plan) always last
   const order = (p: PlanEntry) => (p.code === 'payg' ? 1000 : p.rank)
-  const list = [...(plans.data?.plans ?? [])].sort((a, b) => order(a) - order(b))
+  const wallet = useWallet()
+  // Pay as you Go shows only when the plans list it AND (signed in) the wallet routes answer; a 404 means it is off
+  const list = [...(plans.data?.plans ?? [])].filter((p) => p.code !== 'payg' || !signedIn || wallet.enabled).sort((a, b) => order(a) - order(b))
+  const [topup, setTopup] = useState(false)
   const current = signedIn ? me?.plan.code : undefined
   const currentInterval = me?.plan.interval ?? null
 
@@ -99,8 +103,19 @@ export function PricingPage() {
                   </p>
                   <p className="text-xs text-ink-3">{plan.code === 'payg' ? 'Top up credits, spend them as you go' : isFree ? 'Free forever' : 'Includes GST'}</p>
 
+                  {plan.code === 'payg' && plan.payg && (
+                    <div className="mt-3 space-y-2 text-sm text-ink-2" data-testid="payg-card">
+                      <p>{PAYG_COPY.how}</p>
+                      <ul className="space-y-1" aria-label="Credit packs">
+                        {plan.payg.topup_packs.map((k) => <li key={k.code} className="flex justify-between"><span>Pack</span><span className="font-medium text-ink">{formatPaise(k.price_paise)} <span className="text-xs font-normal text-ink-3">incl. GST</span></span></li>)}
+                      </ul>
+                      <p>{PAYG_COPY.ultra} {PAYG_COPY.validity(plan.payg.credit_validity_months)}</p>
+                      <Button variant="primary" className="w-full" onClick={() => (signedIn ? setTopup(true) : navigate('/signup', { state: { from: '/pricing' } }))}>{PAYG_COPY.topUp}</Button>
+                    </div>
+                  )}
+
                   <div className="mt-4">
-                    {isFree ? null : (
+                    {isFree || plan.code === 'payg' ? null : (
                       <Button
                         variant={isCurrent ? 'secondary' : 'primary'}
                         className="w-full"
@@ -123,6 +138,7 @@ export function PricingPage() {
         {plans.data && <ComparisonTable plans={list} />}
       </main>
 
+      {topup && <TopupDialog onClose={() => setTopup(false)} />}
       {checkout && <CheckoutDialog kind={checkout.kind} plan={checkout.plan} interval={interval} onClose={() => setCheckout(null)} />}
     </div>
   )

@@ -1,7 +1,9 @@
 import { Link, useInRouterContext } from 'react-router-dom'
-import { useBillingMe } from '@/features/billing/hooks'
+import { useBillingMe, useWallet } from '@/features/billing/hooks'
+import { NOTICE_ACTIONS } from '@/content/plans'
+import { expiringSoon } from '@/components/settings/CreditsSettings'
 import { supportEmail } from '@/lib/config'
-import { formatIstDate } from '@/lib/format'
+import { formatIstDate, formatPaise } from '@/lib/format'
 import type { BillingMe } from '@/types/billing'
 
 const btn = 'inline-flex h-6 items-center rounded-md border border-current/30 px-2 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10'
@@ -49,6 +51,17 @@ export function bannersFor(me: BillingMe): Banner[] {
   return out
 }
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
+/** Credits that expire within 7 days (`now` is passed in so tests do not depend on the clock). */
+export function creditsBanner(wallet: Parameters<typeof expiringSoon>[0], now = Date.now()): Banner | null {
+  const soon = expiringSoon(wallet)
+  if (!soon) return null
+  const ms = new Date(soon.at).getTime() - now
+  if (ms > WEEK_MS || ms < 0) return null
+  return { id: 'credits_expiring', tone: 'warn', text: `${formatPaise(soon.amount)} of your credits expire on ${formatIstDate(soon.at)}`, action: <A to="/settings/billing">{NOTICE_ACTIONS.topUp}</A> }
+}
+
 const TONE = {
   info: 'bg-accent-soft text-ink',
   warn: 'bg-warn-soft text-warn',
@@ -57,8 +70,9 @@ const TONE = {
 
 export function BillingBanners() {
   const me = useBillingMe().data
+  const wallet = useWallet()
   if (!me?.plan) return null
-  const banners = bannersFor(me)
+  const banners = [...bannersFor(me), ...(wallet.enabled ? [creditsBanner(wallet.wallet)].filter((x): x is Banner => !!x) : [])]
   if (!banners.length) return null
   return (
     <div data-testid="billing-banners">

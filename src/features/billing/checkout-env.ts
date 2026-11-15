@@ -17,10 +17,12 @@ export function simulatorUrl(path: string | undefined): string | null {
   }
 }
 
+/** What the simulator / Razorpay hands back: a subscription payment carries razorpay_subscription_id, a top-up razorpay_order_id. */
 export interface PaymentProof {
   razorpay_payment_id: string
-  razorpay_subscription_id: string
   razorpay_signature: string
+  razorpay_subscription_id?: string
+  razorpay_order_id?: string
 }
 
 /** A message from the simulator popup, or null for everything else (wrong origin, wrong source, malformed). */
@@ -28,9 +30,10 @@ export function simulatorPayload(event: Pick<MessageEvent, 'origin' | 'data'>): 
   if (event.origin !== API_ORIGIN) return null
   const d = event.data as Record<string, unknown> | null
   if (!d || typeof d !== 'object' || d.source !== SIM_SOURCE) return null
-  const { razorpay_payment_id: p, razorpay_subscription_id: s, razorpay_signature: g } = d
-  if (typeof p !== 'string' || typeof s !== 'string' || typeof g !== 'string' || !p || !s || !g) return null
-  return { razorpay_payment_id: p, razorpay_subscription_id: s, razorpay_signature: g }
+  const { razorpay_payment_id: p, razorpay_subscription_id: s, razorpay_order_id: o, razorpay_signature: g } = d
+  const text = (v: unknown): v is string => typeof v === 'string' && v.length > 0
+  if (!text(p) || !text(g) || (!text(s) && !text(o))) return null // a payment id, a signature and what it paid for
+  return { razorpay_payment_id: p, razorpay_signature: g, ...(text(s) ? { razorpay_subscription_id: s } : {}), ...(text(o) ? { razorpay_order_id: o } : {}) }
 }
 
 interface RazorpayInstance {

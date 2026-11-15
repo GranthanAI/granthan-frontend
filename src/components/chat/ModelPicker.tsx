@@ -3,6 +3,9 @@ import { Link, useInRouterContext } from 'react-router-dom'
 import { Cpu, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/primitives'
 import { toast } from '@/components/ui/overlays'
+import { PAYG_COPY } from '@/content/plans'
+import { usePaygPlan } from '@/features/billing/hooks'
+import { formatPaise } from '@/lib/format'
 import { useModelSelection } from '@/features/billing/useModelSelection'
 import { AUTO_MODEL } from '@/features/billing/model-selection'
 import { useUpdatePreferences } from '@/features/preferences/usePreferences'
@@ -29,6 +32,7 @@ function PricingLink({ className, children, onNavigate }: { className: string; c
 export function ModelPicker({ selectionKey, disabled }: { selectionKey: string; disabled?: boolean }) {
   const sel = useModelSelection(selectionKey)
   const savePref = useUpdatePreferences()
+  const prices = usePaygPlan()?.payg?.unit_prices
   const [open, setOpen] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const panelId = useId()
@@ -133,7 +137,12 @@ export function ModelPicker({ selectionKey, disabled }: { selectionKey: string; 
                         className={cn('flex w-full items-start gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2', on && 'bg-accent-soft')}
                       >
                         {radio(on)}
-                        <span className="block text-sm font-medium text-ink">{m.label}</span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-ink">{m.label}</span>
+                          {g.funded_by === 'credits' && (
+                            <span className="block text-xs text-ink-2">{prices?.[g.group] != null ? PAYG_COPY.perMessage(formatPaise(prices[g.group]!)) : 'uses credits'}</span>
+                          )}
+                        </span>
                       </button>
                     )
                   })}
