@@ -64,37 +64,37 @@ afterEach(() => {
 
 describe('BillingNotice: every reason and its actions', () => {
   const RESETS = '2026-11-16T00:00:00+05:30'
-  const table: Array<[string, Partial<BillingDenied>, { upgrade: boolean; resets: boolean; support: boolean }]> = [
-    ['daily_limit', { resets_at: RESETS }, { upgrade: true, resets: true, support: false }],
-    ['monthly_limit', { resets_at: '2026-12-01T00:00:00+05:30' }, { upgrade: true, resets: true, support: false }],
-    ['model_not_in_plan', {}, { upgrade: true, resets: false, support: false }],
-    ['account_blocked', {}, { upgrade: false, resets: false, support: true }],
-    ['no_credit', {}, { upgrade: true, resets: false, support: false }],
-    ['spend_cap', {}, { upgrade: false, resets: false, support: true }],
-    ['member_spend_cap', {}, { upgrade: false, resets: false, support: true }],
-    ['billing_unavailable', {}, { upgrade: false, resets: false, support: true }],
-    ['plan_limit', { limit: 'file_size_mb' }, { upgrade: true, resets: false, support: false }],
+  const table: Array<[string, Partial<BillingDenied>, { upgrade: boolean; support: boolean }]> = [
+    ['daily_limit', { resets_at: RESETS }, { upgrade: true, support: false }],
+    ['monthly_limit', { resets_at: '2026-12-01T00:00:00+05:30' }, { upgrade: true, support: false }],
+    ['model_not_in_plan', {}, { upgrade: true, support: false }],
+    ['account_blocked', {}, { upgrade: false, support: true }],
+    ['no_credit', {}, { upgrade: true, support: false }],
+    ['spend_cap', {}, { upgrade: false, support: true }],
+    ['member_spend_cap', {}, { upgrade: false, support: true }],
+    ['billing_unavailable', {}, { upgrade: false, support: true }],
+    ['plan_limit', { limit: 'file_size_mb' }, { upgrade: true, support: false }],
   ]
   for (const [reason, over, want] of table) {
-    it(`${reason}: shows the backend message and the right actions`, async () => {
+    it(`${reason}: shows the service's own message for an unknown key, and the right actions`, async () => {
       mock(() => undefined)
       render(wrap(<BillingNotice denial={d(reason, over)} />))
       const n = screen.getByTestId('billing-notice')
       expect(n).toHaveAttribute('role', 'alert')
       expect(within(n).getByText(`msg ${reason}`)).toBeInTheDocument()
-      const upgrade = within(n).queryByRole('link', { name: 'Upgrade' })
+      const upgrade = within(n).queryByRole('link', { name: 'See plans' })
       expect(!!upgrade).toBe(want.upgrade)
       if (upgrade) expect(upgrade).toHaveAttribute('href', '/pricing')
-      expect(!!within(n).queryByText(/^Resets at /)).toBe(want.resets)
       expect(!!within(n).queryByRole('link', { name: 'Contact support' })).toBe(want.support)
       if (want.support) expect(within(n).getByRole('link', { name: 'Contact support' }).getAttribute('href')).toBe('mailto:support@example.test')
     })
   }
 
-  it('shows the reset time in IST', () => {
+  it("limit.daily: our words with the API's number and the refresh time in IST", async () => {
     mock(() => undefined)
-    render(wrap(<BillingNotice denial={d('daily_limit', { resets_at: '2026-11-15T18:30:00Z' })} />))
-    expect(screen.getByText('Resets at 12:00 am')).toBeInTheDocument()
+    render(wrap(<BillingNotice denial={d('daily_limit', { message_key: 'limit.daily', resets_at: '2026-11-15T18:30:00Z' })} />))
+    expect(await screen.findByText("That's all 25 of today's messages. They refresh at 12:00 am.")).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'See plans' })).toHaveAttribute('href', '/pricing')
   })
 
   it('offers Pay now when the account is blocked by a failed payment', async () => {
@@ -104,10 +104,10 @@ describe('BillingNotice: every reason and its actions', () => {
     expect(pay).toHaveAttribute('href', 'https://rzp.io/i/pay-now')
   })
 
-  it('falls back to a built-in message when the service sent none', () => {
+  it('falls back to our own words for the reason when the service sent no message', async () => {
     mock(() => undefined)
     render(wrap(<BillingNotice denial={d('daily_limit', { message: '' })} />))
-    expect(screen.getByText(/today's message limit/i)).toBeInTheDocument()
+    expect(await screen.findByText("That's all 25 of today's messages. They refresh at 12:00 am.")).toBeInTheDocument()
   })
 
   it('can be dismissed', async () => {
@@ -129,17 +129,17 @@ describe('refusals from every service appear above the composer (never as a toas
     sendMessage(qc, 'c1', 'my long question')
     const n = await noticeIn()
     expect(n).toHaveAttribute('data-reason', 'plan_limit')
-    expect(n).toHaveTextContent('Messages per conversation limit for your plan reached')
+    expect(n).toHaveTextContent('This conversation has reached its full length. Branch from any message to continue; your context comes with you.')
     expect(screen.getByRole('textbox', { name: /message granthanai/i })).toHaveValue('my long question')
     expect(useChatStore.getState().runs.c1?.pendingUser ?? null).toBeNull()
   })
 
-  it('chat: a daily limit on send shows "Resets at"', async () => {
-    mock((c) => (c.method === 'POST' && c.path.endsWith('/messages') ? json(429, denial('daily_limit', { resets_at: '2026-11-16T00:00:00+05:30' })) : undefined))
+  it('chat: a daily limit on send says when it refreshes', async () => {
+    mock((c) => (c.method === 'POST' && c.path.endsWith('/messages') ? json(429, denial('daily_limit', { message_key: 'limit.daily', resets_at: '2026-11-16T00:00:00+05:30' })) : undefined))
     const qc = client()
     render(wrap(<Composer conversationId="c1" draftKey="c1" busy={false} onSend={vi.fn(async () => true)} />, qc))
     sendMessage(qc, 'c1', 'hello')
-    expect(await noticeIn()).toHaveTextContent('Resets at 12:00 am')
+    expect(await noticeIn()).toHaveTextContent('They refresh at 12:00 am')
   })
 
   it('chat: documents_per_tree is shown the same way', async () => {
@@ -147,7 +147,7 @@ describe('refusals from every service appear above the composer (never as a toas
     const qc = client()
     render(wrap(<Composer conversationId="c1" draftKey="c1" busy={false} onSend={vi.fn(async () => true)} />, qc))
     sendMessage(qc, 'c1', 'with docs', ['f1'])
-    expect(await noticeIn()).toHaveTextContent('Documents per tree')
+    expect(await noticeIn()).toHaveTextContent('This tree has all 3 of its documents. Remove one, or see plans for more.')
   })
 
   it('uploads: file_size_mb and storage_mb', async () => {
@@ -157,8 +157,8 @@ describe('refusals from every service appear above the composer (never as a toas
       const input = v.container.querySelector('input[type=file]') as HTMLInputElement
       fireEvent.change(input, { target: { files: [new File(['hello'], 'a.txt', { type: 'text/plain' })] } })
       const n = await noticeIn()
-      expect(n).toHaveTextContent(`${limit} limit for your plan reached`)
-      expect(within(n).getByRole('link', { name: 'Upgrade' })).toBeInTheDocument()
+      expect(n).toHaveTextContent(limit === 'file_size_mb' ? 'This file is larger than the 10 MB each upload includes on your plan. Choose a smaller file, or see plans for more.' : 'Your 100 MB of storage is full. Delete files you no longer need, or see plans for more.')
+      expect(within(n).getByRole('link', { name: 'See plans' })).toBeInTheDocument()
       v.unmount()
       useBillingNoticeStore.setState({ denied: {} })
     }
@@ -171,15 +171,15 @@ describe('refusals from every service appear above the composer (never as a toas
     expect(await noticeIn()).toHaveAttribute('data-reason', 'no_credit')
   })
 
-  it('YouTube: the monthly 429 shows the reset time', async () => {
-    mock((c) => (c.path === '/files/youtube' ? json(429, denial('monthly_limit', { message: 'Monthly YouTube limit reached.', resets_at: '2026-12-01T00:00:00+05:30' })) : undefined))
+  it('YouTube: the monthly 429 says when videos refresh', async () => {
+    mock((c) => (c.path === '/files/youtube' ? json(429, denial('monthly_limit', { message_key: 'limit.monthly', resets_at: '2026-12-01T00:00:00+05:30' })) : undefined))
     render(composer())
     await userEvent.click(screen.getByRole('button', { name: /attach youtube link/i }))
     await userEvent.type(await screen.findByLabelText('Video link 1'), 'https://www.youtube.com/watch?v=dQw4w9WgXcQ')
     await userEvent.click(screen.getByRole('button', { name: 'Attach' }))
     const n = await noticeIn()
     expect(n).toHaveAttribute('data-reason', 'monthly_limit')
-    expect(n).toHaveTextContent('Resets at 12:00 am')
+    expect(n).toHaveTextContent("This month's YouTube videos are used. They refresh on 1 Dec.")
   })
 
   it('branches_per_tree: creating a branch from selected text', async () => {
@@ -191,10 +191,10 @@ describe('refusals from every service appear above the composer (never as a toas
     }
     render(wrap(<><Probe /><Composer conversationId="c1" draftKey="c1" busy={false} onSend={vi.fn(async () => true)} /></>))
     await userEvent.click(screen.getByRole('button', { name: 'branch' }))
-    expect(await noticeIn()).toHaveTextContent('Branches per tree limit')
+    expect(await noticeIn()).toHaveTextContent('This tree has all 20 of its branches. Start a new tree, or see plans for more.')
   })
 
-  it('custom modes: custom_modes and mode_instruction_chars show a notice with Upgrade in the form', async () => {
+  it('custom modes: custom_modes and mode_instruction_chars show a notice with See plans in the form', async () => {
     for (const limit of ['custom_modes', 'mode_instruction_chars']) {
       mock((c) => {
         if (c.path === '/custom-modes' && c.method === 'GET') return json(200, { items: [], total: 0, limit: 100, offset: 0, max_per_user: 3, limits: { name: 60, description: 200, instructions: 4000 } })
@@ -207,7 +207,7 @@ describe('refusals from every service appear above the composer (never as a toas
       await userEvent.click(screen.getByRole('button', { name: 'Create mode' }))
       const n = await noticeIn()
       expect(n).toHaveAttribute('data-reason', 'plan_limit')
-      expect(within(n).getByRole('link', { name: 'Upgrade' })).toBeInTheDocument()
+      expect(within(n).getByRole('link', { name: 'See plans' })).toBeInTheDocument()
       expect(screen.getByLabelText('Name')).toHaveValue('Mentor') // the form is kept
       v.unmount()
     }
@@ -225,7 +225,7 @@ describe('refusals from every service appear above the composer (never as a toas
     await userEvent.clear(box)
     await userEvent.type(box, 'Likes coffee')
     await userEvent.click(screen.getByRole('button', { name: /^save/i }))
-    expect(await noticeIn()).toHaveTextContent('Memory facts limit')
+    expect(await noticeIn()).toHaveTextContent("Your 50 memory facts are all in use. Remove the ones you don't need, or see plans for more.")
   })
 
   it('does not turn ordinary errors into a billing notice', async () => {
@@ -284,22 +284,24 @@ describe('SSE notice events', () => {
     const n = { notice_key: 'usage.threshold_80', metric: 'messages', used: 20, limit: 25 }
     useBillingNoticeStore.getState().showQuiet('c1', n)
     const banner = await screen.findByTestId('quiet-notice')
-    expect(banner).toHaveTextContent("You've used 80% of today's messages.")
+    expect(banner).toHaveTextContent('5 messages left today.')
     expect(banner).toHaveAttribute('role', 'status') // quiet: not an alert
     await userEvent.click(screen.getByRole('button', { name: /dismiss usage notice/i }))
     expect(screen.queryByTestId('quiet-notice')).toBeNull()
     useBillingNoticeStore.getState().showQuiet('c1', n)
     expect(screen.queryByTestId('quiet-notice')).toBeNull() // same key + metric: stays dismissed
     useBillingNoticeStore.getState().showQuiet('c1', { ...n, notice_key: 'usage.threshold_100' })
-    expect(await screen.findByTestId('quiet-notice')).toHaveTextContent("You've used all of today's messages.")
+    expect(await screen.findByTestId('quiet-notice')).toHaveTextContent("That's all 25 of today's messages.")
   })
 
   it('writes sensible text for other metrics', () => {
-    expect(quietMessage({ notice_key: 'usage.threshold_80', metric: 'best' })).toBe("You've used 80% of today's Best-model messages.")
-    expect(quietMessage({ notice_key: 'usage.other', used: 3, limit: 4 })).toBe("You've used 3 of 4 today's messages.")
+    expect(quietMessage({ notice_key: 'usage.threshold_80', metric: 'best' })).toBe("About 20% of today's Advanced answers are left.")
+    expect(quietMessage({ notice_key: 'usage.threshold_80', metric: 'best', used: 4, limit: 5 })).toBe('1 Advanced answer left today.')
+    expect(quietMessage({ notice_key: 'usage.other', used: 3, limit: 4 })).toBe('1 message left today.')
+    expect(quietMessage({ notice_key: 'usage.threshold_100', metric: 'youtube' })).toBe("This month's videos are all used.")
     mock(() => undefined)
     render(wrap(<QuietNotice notice={{ notice_key: 'usage.threshold_80', resets_at: '2026-11-15T18:30:00Z' }} onDismiss={() => {}} />))
-    expect(screen.getByText(/Resets at 12:00 am/)).toBeInTheDocument()
+    expect(screen.getByText(/Refreshes at 12:00 am/)).toBeInTheDocument()
   })
 })
 

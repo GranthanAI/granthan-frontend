@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download } from 'lucide-react'
+import { groupLabel } from '@/content/plans'
 import { Alert, Button, Skeleton, TextField } from '@/components/ui/primitives'
 import { saveBlob } from '@/lib/download'
 import { ApiError, errorMessage, toApiError } from '@/lib/errors'
@@ -246,7 +247,7 @@ function PlanCard({ plan, canWrite, errors, onChange }: { plan: CatalogPlan; can
         <div className="flex flex-wrap gap-3">
           {GROUPS.map((g) => (
             <label key={g} className="flex items-center gap-1.5 text-sm"><input type="checkbox" disabled={!canWrite} checked={plan.models.groups.includes(g)} aria-label={`${cap(plan.code)} includes ${g}`}
-              onChange={(e) => onChange((p) => { p.models.groups = e.target.checked ? [...p.models.groups, g] : p.models.groups.filter((x) => x !== g) })} />{cap(g)}</label>
+              onChange={(e) => onChange((p) => { p.models.groups = e.target.checked ? [...p.models.groups, g] : p.models.groups.filter((x) => x !== g) })} />{groupLabel(g)}</label>
           ))}
         </div>
       </fieldset>
@@ -255,7 +256,7 @@ function PlanCard({ plan, canWrite, errors, onChange }: { plan: CatalogPlan; can
           onChange={(e) => onChange((p) => { const ids = e.target.value.split(',').map((x) => x.trim()).filter(Boolean); p.models.extra = ids })} />
         <label className="text-sm"><span className="mb-1.5 block font-medium">Default group</span>
           <select disabled={!canWrite} value={plan.default_group} onChange={(e) => onChange((p) => { p.default_group = e.target.value })} className="h-10 w-full rounded-lg border border-line bg-raised px-3 text-sm">
-            {plan.models.groups.filter((g) => g !== 'best' && g !== 'ultra').map((g) => <option key={g} value={g}>{cap(g)}</option>)}
+            {plan.models.groups.filter((g) => g !== 'best' && g !== 'ultra').map((g) => <option key={g} value={g}>{groupLabel(g)}</option>)}
           </select>
         </label>
       </div>
@@ -321,7 +322,7 @@ function ModelsTab({ draft, canWrite, errors, priced, providers, edit }: { draft
       <Field errs={errorsFor(errors, 'model_groups')} />
       {GROUPS.map((g) => (
         <section key={g} className="rounded-2xl border border-line bg-raised p-4" aria-label={`${cap(g)} models`}>
-          <h2 className="mb-2 font-semibold">{cap(g)}</h2>
+          <h2 className="mb-2 font-semibold">{groupLabel(g)}</h2>
           <ul className="space-y-2">
             {(draft.model_groups[g] ?? []).map((m, i, all) => (
               <li key={m.id} className="flex items-end gap-2">
@@ -371,8 +372,8 @@ function PreviewPanel({ preview }: { preview: Preview }) {
             {p.limits.map((l) => (
               <li key={l.name} data-direction={l.direction} className={l.direction === 'up' ? 'text-ok' : 'text-warn'}>{LIMIT_LABELS[l.name as keyof typeof LIMIT_LABELS] ?? l.name}: {val(l.from)} → {val(l.to)} ({l.direction === 'up' ? 'higher' : 'lower'})</li>
             ))}
-            {p.groups.added.map((g) => <li key={`+${g}`}>model group added: {g}</li>)}
-            {p.groups.removed.map((g) => <li key={`-${g}`}>model group removed: {g}</li>)}
+            {p.groups.added.map((g) => <li key={`+${g}`}>model group added: {groupLabel(g)}</li>)}
+            {p.groups.removed.map((g) => <li key={`-${g}`}>model group removed: {groupLabel(g)}</li>)}
             {p.extra_models.added.map((m) => <li key={`+${m}`}>extra model added: {m}</li>)}
             {p.extra_models.removed.map((m) => <li key={`-${m}`}>extra model removed: {m}</li>)}
             {(p.other ?? []).map((o) => <li key={o.name}>{o.name}: {String(o.from)} → {String(o.to)}</li>)}

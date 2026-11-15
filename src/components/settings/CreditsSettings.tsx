@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Skeleton, TextField } from '@/components/ui/primitives'
 import { toast } from '@/components/ui/overlays'
 import { SettingsSection } from '@/components/settings/controls'
+import { WhatsIncluded } from '@/components/billing/WhatsIncluded'
 import { TopupDialog } from '@/features/billing/TopupDialog'
 import { useWallet } from '@/features/billing/hooks'
 import { errorMessage } from '@/lib/errors'
@@ -40,7 +41,7 @@ export function CreditsSettings() {
   const soon = expiringSoon(wallet)
   return (
     <>
-      <SettingsSection title="Credits" description="Pay as you Go credits, including GST. They are spent only when a message uses a model your plan does not cover.">
+      <SettingsSection title="Credits" description="Pay as you Go credits, including GST. They cover any message that goes beyond what your plan includes.">
         <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm" data-testid="credits-summary">
           <dt className="text-ink-3">Balance</dt>
           <dd className="font-semibold" data-testid="credits-balance">{formatPaise(wallet?.balance_paise ?? 0)}</dd>
@@ -51,6 +52,7 @@ export function CreditsSettings() {
             </>
           )}
         </dl>
+        <WhatsIncluded credits />
         <div><Button variant="primary" onClick={() => setTopup(true)}>Top up credits</Button></div>
       </SettingsSection>
       <SpendCap wallet={wallet} />
@@ -77,7 +79,7 @@ function SpendCap({ wallet }: { wallet: Wallet | null }) {
   })
   const used = wallet?.month_to_date_paise ?? 0
   return (
-    <SettingsSection title="Monthly spend cap" description="Sending with credits pauses when you reach this amount in a month. We warn you at 80% and 100%.">
+    <SettingsSection title="Monthly spend cap" description="Credits pause when you reach this amount in a month. We tell you at 80% and 100%.">
       <p className="text-sm text-ink-2" data-testid="cap-usage">
         {cap != null ? `${formatPaise(used)} of ${formatPaise(cap)} used this month` : `${formatPaise(used)} used this month, no cap set`}
       </p>

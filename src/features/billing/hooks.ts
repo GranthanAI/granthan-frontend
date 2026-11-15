@@ -36,6 +36,11 @@ export function usePlans() {
   return useQuery({ queryKey: qk.billingPlans, queryFn: ({ signal }) => billingService.plans(signal), staleTime: 5 * 60_000, retry: 1 })
 }
 
+/** Public: the model catalog (ids, labels, groups) for naming models by group. */
+export function useModelCatalog() {
+  return useQuery({ queryKey: qk.billingCatalog, queryFn: ({ signal }) => billingService.models(signal), staleTime: 5 * 60_000, retry: 1 })
+}
+
 export function useUsage(range?: { from?: string; to?: string }) {
   const enabled = useSignedIn()
   return useQuery({

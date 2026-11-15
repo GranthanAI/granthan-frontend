@@ -14,7 +14,7 @@ import { useChatStore } from '@/stores/chat.store'
 import { useDraftStore } from '@/stores/draft.store'
 import type { ApiMessage } from '@/types/api'
 import type { BillingMe, MyModelsResponse } from '@/types/billing'
-import { meFree, meMax, mePro, modelsFree, modelsMax, modelsPro } from './billing-fixtures'
+import { meFree, meMax, mePro, modelsFree, modelsMax, modelsPro, plansResponse } from './billing-fixtures'
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
@@ -23,10 +23,11 @@ interface Setup {
   me?: BillingMe
   models?: MyModelsResponse | 'fail'
   defaultModel?: string
+  plans?: boolean
 }
 
 /** Mocks only the HTTP boundary and records what the app sends. */
-function mockApi({ me = meFree, models = modelsFree, defaultModel = 'auto' }: Setup = {}) {
+function mockApi({ me = meFree, models = modelsFree, defaultModel = 'auto', plans = false }: Setup = {}) {
   const sent: Array<{ path: string; method: string; body: Record<string, unknown> | null }> = []
   vi.stubGlobal(
     'fetch',
@@ -36,6 +37,7 @@ function mockApi({ me = meFree, models = modelsFree, defaultModel = 'auto' }: Se
       const body = init?.body ? (JSON.parse(String(init.body)) as Record<string, unknown>) : null
       sent.push({ path, method, body })
       if (path === '/billing/me') return json(200, me)
+      if (plans && path === '/billing/plans') return json(200, plansResponse)
       if (path === '/billing/me/models') return models === 'fail' ? json(500, { detail: 'x' }) : json(200, models)
       if (path === '/preferences' && method === 'PATCH') return json(200, { default_mode: null, default_tools: [], version: 2, ...body })
       if (path === '/preferences') return json(200, { default_mode: null, default_tools: [], version: 1, default_model: defaultModel })
@@ -77,37 +79,75 @@ afterEach(() => {
 })
 
 describe('model picker', () => {
-  it('lists Fast, Smart, Best, Ultra with labels from the API; locked models say which plan unlocks them', async () => {
+  it('lists included models by group with a description; models the plan lacks sit in an "On Pro" section, not greyed or locked', async () => {
     mockApi({ models: modelsFree })
     renderComposer()
     await open()
     const dialog = await screen.findByRole('dialog', { name: 'Models' })
     const groups = within(dialog).getAllByRole('group').map((g) => g.getAttribute('aria-label'))
-    expect(groups).toEqual(['Fast', 'Smart', 'Best', 'Ultra'])
-    const radios = within(dialog).getAllByRole('radio')
+    expect(groups).toEqual(['Fast', 'On Pro', 'With credits'])
+    expect(within(dialog).getByText('Quick, everyday answers.')).toBeInTheDocument()
     expect(within(dialog).queryByRole('radio', { name: /auto/i })).toBeNull()
-    expect(radios[0]).toHaveAccessibleName(/llama fast/i)
     expect(within(dialog).getByRole('radio', { name: /llama fast/i })).toBeEnabled()
-    const locked = within(dialog).getByRole('link', { name: /llama smart/i })
-    expect(locked).toHaveTextContent('Available on Pro')
-    expect(locked).toHaveAttribute('href', '/pricing')
-    expect(within(dialog).getByRole('link', { name: /best one/i })).toHaveTextContent('Available on Max')
-    // A locked model is not selectable.
+    // not included: a normal button with a small plan badge, never a padlock or a link
+    expect(within(dialog).queryByRole('link')).toBeNull()
+    const pro = within(within(dialog).getByRole('group', { name: 'On Pro' })).getAllByRole('button')
+    expect(pro.map((b) => b.textContent)).toEqual(['Llama SmartSmartPro', 'Best OneAdvancedPro'])
+    expect(within(dialog).getByRole('group', { name: 'With credits' })).toHaveTextContent('Ultra One')
     expect(within(dialog).queryByRole('radio', { name: /llama smart/i })).toBeNull()
+    expect(dialog.innerHTML).not.toMatch(/lucide-lock/)
   })
 
-  it('unlocks Smart on Pro and shows how many Best messages are left on Max', async () => {
+  it('choosing a model the plan lacks opens a friendly comparison with See plans, not an error', async () => {
+    mockApi({ models: modelsFree })
+    renderComposer()
+    await open()
+    await userEvent.click(await screen.findByRole('button', { name: /best one/i }))
+    const info = await screen.findByRole('dialog', { name: 'About Best One' })
+    expect(info).toHaveTextContent('Best One is included with Pro.')
+    expect(within(info).getByRole('link', { name: 'See plans' })).toHaveAttribute('href', '/pricing')
+    expect(screen.queryByRole('alert')).toBeNull()
+    // the choice did not change
+    expect(useModelSelectionStore.getState().modelByKey).toEqual({})
+  })
+
+  it('names the plans and the Advanced allowance from /billing/plans', async () => {
+    const models = {
+      ...modelsFree,
+      groups: modelsFree.groups.map((g) =>
+        g.group === 'best' ? { ...g, models: [{ id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', provider: 'anthropic', allowed: false }] } : g,
+      ),
+    }
+    mockApi({ models, plans: true })
+    renderComposer()
+    await open()
+    await userEvent.click(await screen.findByRole('button', { name: /claude sonnet 5\.5/i }))
+    const info = await screen.findByRole('dialog', { name: 'About Claude Sonnet 5.5' })
+    expect(info).toHaveTextContent('Claude Sonnet 5.5 is included with Pro and Max: Advanced answers every day: 5 on Pro, 15 on Max.')
+  })
+
+  it('unlocks Smart on Pro and shows the Advanced answers left on Max', async () => {
     mockApi({ models: modelsPro })
     const first = renderComposer()
     await open()
     expect(await screen.findByRole('radio', { name: /llama smart/i })).toBeEnabled()
+    expect(screen.getByTestId('advanced-line')).toHaveTextContent('4 Advanced answers left today · refreshes at 12:00 am')
     first.unmount()
 
     mockApi({ models: modelsMax })
     renderComposer()
     await open()
-    expect(await screen.findByText('8 Best left today')).toBeInTheDocument()
+    expect(await screen.findByText('8 Advanced answers left today · refreshes at 12:00 am')).toBeInTheDocument()
     expect(screen.getByRole('radio', { name: /best one/i })).toBeEnabled()
+  })
+
+  it('at 0 the allowance line says Smart continues', async () => {
+    const used = { ...modelsPro, groups: modelsPro.groups.map((g) => (g.group === 'best' ? { ...g, remaining_today: 0 } : g)) }
+    mockApi({ models: used })
+    renderComposer()
+    await open()
+    expect(await screen.findByTestId('advanced-line')).toHaveTextContent("Today's Advanced answers are used · Smart continues · refreshes at 12:00 am")
+    expect(screen.getByRole('radio', { name: /best one/i })).toBeEnabled() // still selectable: the answer continues on Smart
   })
 
   it('is hidden when /billing/me/models fails', async () => {
@@ -195,37 +235,41 @@ describe('the chosen model is sent', () => {
 })
 
 describe('usage meter', () => {
-  it('shows the count, the reset time and Best left', async () => {
+  it('shows what is LEFT, the refresh time and the Advanced answers left', async () => {
     mockApi({ me: meMax, models: modelsMax })
     renderComposer()
     const meter = await screen.findByTestId('usage-meter')
-    expect(meter).toHaveTextContent('20 of 80 messages today · resets 12:00 am · 8 Best left today')
+    expect(meter).toHaveTextContent('60 messages left today · refreshes at 12:00 am · 8 Advanced left')
     expect(meter).toHaveAttribute('data-level', 'ok')
   })
 
-  it('is amber from 80% and red at 100%', () => {
-    expect(meterLevel(63, 80)).toBe('ok')
-    expect(meterLevel(64, 80)).toBe('warn')
-    expect(meterLevel(79, 80)).toBe('warn')
-    expect(meterLevel(80, 80)).toBe('full')
-    expect(meterLevel(90, 80)).toBe('full')
+  it('is calm until under 10% is left, then amber; never red', () => {
+    expect(meterLevel(0, 80)).toBe('ok')
+    expect(meterLevel(72, 80)).toBe('ok') // exactly 10% left
+    expect(meterLevel(73, 80)).toBe('low')
+    expect(meterLevel(80, 80)).toBe('low')
+    expect(meterLevel(90, 80)).toBe('low')
   })
 
-  it('renders the warn and full levels, and the free count', async () => {
+  it('counts down from the plan: 33 a day, 31 used is 2 left, amber', async () => {
     const me = { ...meFree, usage_today: { ...meFree.usage_today, total: 31 } }
-    mockApi({ me: { ...me, limits: { ...me.limits, messages_per_day: 35 } } })
+    mockApi({ me: { ...me, limits: { ...me.limits, messages_per_day: 33 } } })
     renderComposer()
     const meter = await screen.findByTestId('usage-meter')
-    expect(meter).toHaveTextContent('31 of 35 messages today')
-    expect(meter).toHaveAttribute('data-level', 'warn')
+    expect(meter).toHaveTextContent('2 messages left today · refreshes at 12:00 am')
+    expect(meter).toHaveAttribute('data-level', 'low')
     expect(meter.className).toMatch(/text-warn/)
+    expect(meter.className).not.toMatch(/danger|red/)
   })
 
-  it('is red when the limit is reached and hidden when unlimited', async () => {
-    const full = { ...mePro, limits: { ...mePro.limits, messages_per_day: 10 } }
+  it('at 0 says none are left (amber, not red) and is hidden when unlimited', async () => {
+    const full = { ...mePro, usage_today: { ...mePro.usage_today, total: 10 }, limits: { ...mePro.limits, messages_per_day: 10 } }
     mockApi({ me: full })
     const v = renderComposer()
-    expect((await screen.findByTestId('usage-meter')).className).toMatch(/text-danger/)
+    const meter = await screen.findByTestId('usage-meter')
+    expect(meter).toHaveTextContent('No messages left today · refreshes at 12:00 am')
+    expect(meter.className).toMatch(/text-warn/)
+    expect(meter.className).not.toMatch(/danger/)
     v.unmount()
     mockApi({ me: { ...mePro, limits: { ...mePro.limits, messages_per_day: -1 } } })
     renderComposer()
@@ -251,7 +295,7 @@ describe('answered-by label and downgrade notice', () => {
   it('says which model answered, using the label from the catalog', async () => {
     renderMsg(assistant({ model: 'llama-smart', model_group: 'smart' }))
     expect(await screen.findByText('Answered by Llama Smart')).toBeInTheDocument()
-    expect(screen.queryByText(/Best-model messages/)).toBeNull()
+    expect(screen.queryByText(/Advanced answers are used/)).toBeNull()
   })
 
   it('falls back to the model id when the label is unknown, and shows nothing when there is no model', async () => {
@@ -267,6 +311,6 @@ describe('answered-by label and downgrade notice', () => {
 
   it('explains the downgrade when notice_key is limit.best_switched', async () => {
     renderMsg(assistant({ model: 'llama-smart', billing: { downgraded: true, notice_key: 'limit.best_switched' } }))
-    expect(await screen.findByText("You've used today's Best-model messages, so this answer uses a Smart model.")).toBeInTheDocument()
+    expect(await screen.findByText("Today's 15 Advanced answers are used, so this one comes from Llama Smart (Smart). Advanced refreshes at 12:00 am.")).toBeInTheDocument()
   })
 })

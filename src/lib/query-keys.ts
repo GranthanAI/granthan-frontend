@@ -16,6 +16,7 @@ export const qk = {
   billingMe: ['billing', 'me'] as const,
   billingModels: ['billing', 'me', 'models'] as const,
   billingPlans: ['billing', 'plans'] as const,
+  billingCatalog: ['billing', 'models'] as const,
   billingUsage: (from?: string, to?: string) => ['billing', 'usage', from ?? '', to ?? ''] as const,
   billingUsageAll: ['billing', 'usage'] as const,
   wallet: ['billing', 'wallet'] as const,

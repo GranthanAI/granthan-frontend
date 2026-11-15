@@ -95,9 +95,9 @@ describe('Settings → Billing', () => {
   it('Max shows Unlimited where the plan has no cap', async () => {
     mock({ me: meMax })
     page(<BillingSettings />)
-    const limits = await screen.findByRole('list', { name: 'Plan limits' })
+    const limits = await screen.findByRole('list', { name: 'What your plan includes' })
     expect(within(limits).getByText('Saved memory facts').nextSibling).toHaveTextContent('Unlimited')
-    expect(within(limits).getByText('Best-model messages per day').nextSibling).toHaveTextContent('12')
+    expect(within(limits).getByText('Advanced answers every day').nextSibling).toHaveTextContent('15')
   })
 
   it('past due: failed payment with Pay now', async () => {
@@ -211,7 +211,7 @@ describe('Settings → AI preferences: default model', () => {
     page(<AiPreferencesSettings />)
     const select = await screen.findByLabelText('Default model')
     const options = within(select).getAllByRole('option').map((o) => o.textContent)
-    expect(options).toEqual(['Llama Fast (fast)', 'Llama Smart (smart)'])
+    expect(options).toEqual(['Llama Fast (Fast)', 'Llama Smart (Smart)', 'Best One (Advanced)'])
     await userEvent.selectOptions(select, 'llama-smart')
     await userEvent.click(screen.getByRole('button', { name: 'Save preferences' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))

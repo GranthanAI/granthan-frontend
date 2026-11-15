@@ -3,22 +3,22 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Check, Minus, Sparkles } from 'lucide-react'
 import { Alert, Button, Logo, Skeleton } from '@/components/ui/primitives'
 import { CheckoutDialog, changeDirection, type CheckoutKind } from '@/features/billing/CheckoutDialog'
-import { useBillingMe, usePlans, useWallet } from '@/features/billing/hooks'
+import { useBillingMe, useModelCatalog, usePlans, useWallet } from '@/features/billing/hooks'
+import { includedByGroup, includedLine, joinNames, planIncludes, subscribablePlans } from '@/features/billing/includedModels'
 import { TopupDialog } from '@/features/billing/TopupDialog'
 import { errorMessage } from '@/lib/errors'
 import { formatPaise } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useRestoreSession } from '@/app/router'
-import type { BillingInterval, PlanEntry } from '@/types/billing'
+import type { BillingInterval, CatalogModel, PlanEntry } from '@/types/billing'
 import { buildRows } from '@/features/billing/planTable'
-import { PAYG_COPY, POPULAR_PLAN, PRICING_COPY, ROW_LABELS, WORDS, planCopy } from '@/content/plans'
+import { GROUP_DESCRIPTIONS, GROUP_ORDER, PAYG_COPY, POPULAR_PLAN, PRICING_COPY, ROW_LABELS, WORDS, groupLabel, planCopy } from '@/content/plans'
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 
 /** The rows each card shows as its highlights (the full list is in the comparison table). */
 const HIGHLIGHTS: Array<[string, string]> = [
   ['messagesPerDay', ROW_LABELS.messagesPerDay],
-  ['models', ROW_LABELS.models],
   ['memoryFacts', ROW_LABELS.memoryFacts],
   ['storage', ROW_LABELS.storage],
   ['support', ROW_LABELS.support],
@@ -42,7 +42,9 @@ export function PricingPage() {
   const [topup, setTopup] = useState(false)
   const current = signedIn ? me?.plan.code : undefined
   const currentInterval = me?.plan.interval ?? null
-  const cells = Object.fromEntries(buildRows(list).map((r) => [r.key, r.cells]))
+  const catalog = useModelCatalog().data?.models
+  const models = Array.isArray(catalog) ? catalog : undefined
+  const cells = Object.fromEntries(buildRows(list, models).map((r) => [r.key, r.cells]))
   // "Save up to N%" for paying yearly, shown beside the toggle (display only; the prices themselves are the API's)
   const yearlySaving = Math.max(0, ...list.map((p) => (p.prices.month && p.prices.year ? Math.round((1 - p.prices.year / (12 * p.prices.month)) * 100) : 0)))
 
@@ -173,6 +175,16 @@ export function PricingPage() {
                   </div>
 
                   <hr className="my-5 border-line" />
+                  {models && (
+                    <div className="mb-4" data-testid="models-included">
+                      <p className="mb-1.5 text-sm font-medium text-ink">{PRICING_COPY.included}</p>
+                      <ul className="space-y-1 text-sm text-ink-2" aria-label={`${planCopy(plan.code).name} models`}>
+                        {includedByGroup(plan, models).map((g) => (
+                          <li key={g.group} data-group={g.group}>{includedLine(g)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <ul className="space-y-2.5 text-sm" aria-label={`${planCopy(plan.code).name} highlights`}>
                     {HIGHLIGHTS.map(([key, text]) => (
                       <li key={key} className="flex items-start gap-2.5">
@@ -199,7 +211,9 @@ export function PricingPage() {
           </ul>
         )}
 
-        {plans.data && <ComparisonTable plans={list} />}
+        {plans.data && models && <WhichModel plans={list} models={models} />}
+
+        {plans.data && <ComparisonTable plans={list} models={models} />}
 
         <p className="mt-10 text-center text-xs text-ink-3">{PRICING_COPY.footnote}</p>
       </main>
@@ -211,8 +225,8 @@ export function PricingPage() {
 }
 
 /** Every row of the plan sheet. The Pay as you Go column is there only when the API lists that plan. */
-function ComparisonTable({ plans }: { plans: PlanEntry[] }) {
-  const rows = buildRows(plans)
+function ComparisonTable({ plans, models }: { plans: PlanEntry[]; models?: CatalogModel[] }) {
+  const rows = buildRows(plans, models)
   return (
     <section className="mt-16" aria-labelledby="compare-title">
       <h2 id="compare-title" className="text-2xl font-semibold tracking-tight">Compare plans</h2>
@@ -250,6 +264,36 @@ function ComparisonTable({ plans }: { plans: PlanEntry[] }) {
           </tbody>
         </table>
       </div>
+    </section>
+  )
+}
+
+/** The four groups in plain words, and which plans include each. Names and plans come from the API. */
+function WhichModel({ plans, models }: { plans: PlanEntry[]; models: CatalogModel[] }) {
+  const subscribable = subscribablePlans(plans)
+  return (
+    <section className="mt-16" aria-labelledby="which-title" data-testid="which-model">
+      <h2 id="which-title" className="text-2xl font-semibold tracking-tight">{PRICING_COPY.whichTitle}</h2>
+      <p className="mt-1 text-sm text-ink-2">{PRICING_COPY.whichIntro}</p>
+      <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+        {GROUP_ORDER.map((group) => {
+          const inGroup = models.filter((m) => m.group === group)
+          if (!inGroup.length) return null
+          const names = subscribable.filter((p) => inGroup.some((m) => planIncludes(p, m))).map((p) => {
+            const part = inGroup.filter((m) => planIncludes(p, m)).length
+            return planCopy(p.code).name + (part < inGroup.length ? ' (some of these)' : '')
+          })
+          const where = group === 'ultra' || !names.length ? `${WORDS.withCredits} on any plan` : `Included with ${joinNames(names)}`
+          return (
+            <li key={group} data-group={group} className="rounded-2xl border border-line bg-raised p-5">
+              <h3 className="text-lg font-semibold">{groupLabel(group)}</h3>
+              <p className="mt-1 text-sm text-ink-2">{GROUP_DESCRIPTIONS[group]}</p>
+              <p className="mt-2 text-xs text-ink-3">{inGroup.map((m) => m.label).join(', ')}</p>
+              <p className="mt-2 text-sm font-medium">{where}</p>
+            </li>
+          )
+        })}
+      </ul>
     </section>
   )
 }

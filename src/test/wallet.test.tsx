@@ -200,7 +200,7 @@ describe('notices and banners', () => {
     mock()
     wrap(<BillingNotice denial={d({})} />)
     expect(await screen.findByRole('link', { name: 'Top up' })).toHaveAttribute('href', '/settings/billing')
-    expect(screen.getByText('Top up to continue.')).toBeInTheDocument()
+    expect(await screen.findByText(/Your credits are used up. Top up to keep going/)).toBeInTheDocument()
   })
 
   it('spend_cap: Raise your cap', async () => {
@@ -212,7 +212,7 @@ describe('notices and banners', () => {
   it('member_spend_cap: ask your organisation admin, no top-up or cap action', async () => {
     mock()
     wrap(<BillingNotice denial={d({ reason: 'member_spend_cap', message_key: 'credits.member_cap' })} />)
-    expect(screen.getByText(/Ask your organisation admin to raise it/)).toBeInTheDocument()
+    expect(screen.getByText(/Ask your organisation admin to add more/)).toBeInTheDocument()
     await new Promise((r) => setTimeout(r, 60))
     expect(screen.queryByRole('link', { name: 'Top up' })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Raise your cap' })).toBeNull()

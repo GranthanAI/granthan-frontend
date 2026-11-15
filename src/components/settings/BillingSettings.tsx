@@ -7,6 +7,7 @@ import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { SettingsSection } from '@/components/settings/controls'
 import { CheckoutDialog } from '@/features/billing/CheckoutDialog'
 import { CreditsSettings } from '@/components/settings/CreditsSettings'
+import { WhatsIncluded } from '@/components/billing/WhatsIncluded'
 import { invalidateBilling, useBillingMe, useBillingProfile, useGstStates, useInvoices, usePlans } from '@/features/billing/hooks'
 import { saveBlob, safeFileName } from '@/lib/download'
 import { toApiError, errorMessage } from '@/lib/errors'
@@ -113,10 +114,11 @@ export function BillingSettings() {
 
       <CreditsSettings />
 
-      <SettingsSection title="Limits" description="What your plan includes.">
-        <ul className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm" aria-label="Plan limits">
-          <Limit label="Messages per day" value={me.limits.messages_per_day} />
-          <Limit label="Best-model messages per day" value={me.limits.best_per_day} />
+      <SettingsSection title="What's included" description="Your plan's models and daily allowances.">
+        <WhatsIncluded />
+        <ul className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm" aria-label="What your plan includes">
+          <Limit label="Messages every day" value={me.limits.messages_per_day} />
+          <Limit label="Advanced answers every day" value={me.limits.best_per_day} />
           <Limit label="Saved memory facts" value={me.limits.memory_facts} />
           <Limit label="Storage (MB)" value={me.limits.storage_mb} />
         </ul>
@@ -146,7 +148,7 @@ function Limit({ label, value }: { label: string; value: number }) {
   return (
     <li className="flex justify-between gap-3 border-b border-line/60 py-1">
       <span className="text-ink-2">{label}</span>
-      <span className="font-medium">{value === 0 ? 'Not included' : formatLimit(value)}</span>
+      <span className="font-medium">{value === 0 ? '—' : formatLimit(value)}</span>
     </li>
   )
 }

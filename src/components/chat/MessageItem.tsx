@@ -2,8 +2,8 @@ import { lazy, memo, Suspense, useState } from 'react'
 import { AlertCircle, Check, ChevronDown, Copy, FileText, Paperclip, RefreshCw, StepForward } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/primitives'
-import { limitCopy } from '@/content/plans'
-import { useMyModels } from '@/features/billing/hooks'
+import { bestSwitchedText } from '@/features/billing/noticeCopy'
+import { useBillingMe, useModelCatalog, useMyModels } from '@/features/billing/hooks'
 import { youtubeService } from '@/services/youtube.service'
 import { timecode, videoLink, youtubeDocTitle } from '@/features/uploads/youtube'
 import { copyText } from '@/lib/clipboard'
@@ -215,16 +215,17 @@ function AssistantMessage({
   )
 }
 
-/** "Answered by <model>" plus billing's downgrade notice when a Best request was served by a Smart model. */
+/** "Answered by <model>" plus the downgrade notice when an Advanced request was served by a Smart model. */
 function AnsweredBy({ model, noticeKey }: { model: string; noticeKey?: string | null }) {
   const models = useMyModels().data
+  const me = useBillingMe().data
+  const catalog = useModelCatalog().data?.models
   const label = models?.groups.flatMap((g) => g.models).find((x) => x.id === model)?.label ?? model
+  const switched = noticeKey === 'limit.best_switched' ? bestSwitchedText({ me, models, catalog, answeredBy: model }) : null
   return (
     <div className="mt-2 space-y-1 text-xs text-ink-3">
       <p>Answered by {label}</p>
-      {noticeKey === 'limit.best_switched' && (
-        <p role="note" className="text-warn">{limitCopy('limit.best_switched')?.message}</p>
-      )}
+      {noticeKey === 'limit.best_switched' && <p role="note" className="text-ink-2">{switched ?? "Today's Advanced answers are used, so this one comes from a Smart model."}</p>}
     </div>
   )
 }

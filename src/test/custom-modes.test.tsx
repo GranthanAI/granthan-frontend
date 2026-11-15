@@ -132,10 +132,10 @@ describe('Custom modes settings', () => {
     await waitFor(() => expect(calls.some((c) => c.method === 'DELETE' && c.path === `/custom-modes/${MODE_ID}`)).toBe(true))
   })
 
-  it('explains the per-user limit and disables creation at it', async () => {
+  it('explains that all included modes are in use and disables creation', async () => {
     mock((c) => (c.method === 'GET' ? json(200, list([mode(), mode({ mode_id: 'b', mode_ref: 'custom:b', name: 'B' })], { max_per_user: 2 })) : undefined))
     renderPage(<CustomModesSettings />)
-    expect(await screen.findByText(/reached the limit of 2/i)).toBeInTheDocument()
+    expect(await screen.findByText(/You have all 2 custom modes your plan includes/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /new mode/i })).toBeDisabled()
   })
 

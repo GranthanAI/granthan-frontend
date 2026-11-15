@@ -4,6 +4,7 @@ import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { SegmentedControl, SelectField, SettingsSection, TextAreaField } from '@/components/settings/controls'
 import { usePreferences, useResetPreferences, useUpdatePreferences } from '@/features/preferences/usePreferences'
 import { useTools } from '@/features/tools/useTools'
+import { groupLabel } from '@/content/plans'
 import { useMyModels } from '@/features/billing/hooks'
 import { defaultModelId } from '@/features/billing/model-selection'
 import { useAllModes } from '@/features/custom-modes/useCustomModes'
@@ -147,11 +148,11 @@ export function AiPreferencesSettings() {
             onChange={(v) => set('default_model', v)}
             options={[
               ...myModels.data.groups.flatMap((g) =>
-                g.models.filter((m) => g.allowed && m.allowed).map((m) => ({ value: m.id, label: `${m.label} (${g.group})` })),
+                g.models.filter((m) => m.allowed).map((m) => ({ value: m.id, label: `${m.label} (${groupLabel(g.group)})` })),
               ),
               ...(draft.default_model !== 'auto' && !!draft.default_model &&
-              !myModels.data.groups.some((g) => g.allowed && g.models.some((m) => m.allowed && m.id === draft.default_model))
-                ? [{ value: draft.default_model!, label: `${draft.default_model} (not in your plan)` }]
+              !myModels.data.groups.some((g) => g.models.some((m) => m.allowed && m.id === draft.default_model))
+                ? [{ value: draft.default_model!, label: `${draft.default_model} (not included)` }]
                 : []),
             ]}
             hint="New conversations start with this model. You can still choose a different one for a conversation in the composer."

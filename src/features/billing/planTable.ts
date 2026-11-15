@@ -1,6 +1,7 @@
-import { PLAN_COPY, ROW_LABELS, WORDS, YES_ROWS, planCopy } from '@/content/plans'
-import { formatLimit, formatPaise } from '@/lib/format'
-import type { PlanEntry } from '@/types/billing'
+import { PLAN_COPY, ROW_LABELS, WORDS, YES_ROWS, groupLabel, planCopy } from '@/content/plans'
+import { formatLimit, formatMb, formatPaise } from '@/lib/format'
+import type { CatalogModel, PlanEntry } from '@/types/billing'
+import { includedByGroup } from './includedModels'
 
 export interface TableRow {
   key: string
@@ -11,23 +12,30 @@ export interface TableRow {
   yes?: boolean
 }
 
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const rupees = (paise: number) => formatPaise(paise)
 
 function reading(n: number): string {
   if (n === -1) return WORDS.fullWindow
   return `${Math.round(n / 1000)}k tokens`
 }
-function size(mb: number): string {
-  if (mb === -1) return WORDS.unlimited
-  return mb >= 1024 && mb % 1024 === 0 ? `${mb / 1024} GB` : `${formatLimit(mb)} MB`
+const size = (mb: number): string => (mb === -1 ? WORDS.unlimited : formatMb(mb))
+
+/** "Fast, Smart (3 of 5 models), Advanced": the groups a plan includes, partial groups say how many models. */
+function modelsCell(p: PlanEntry, catalog: CatalogModel[] | undefined): string {
+  if (!catalog?.length) return p.groups.map(groupLabel).join(', ')
+  return includedByGroup(p, catalog)
+    .map((g) => {
+      const total = catalog.filter((m) => m.group === g.group).length
+      return p.groups.includes(g.group) || g.models.length === total ? g.label : `${g.label} (${g.models.length} of ${total} models)`
+    })
+    .join(', ')
 }
 
 /**
  * The comparison table: every row of the plan sheet, in order. Numbers come from the API's plans (limits, prices, payg unit
  * prices); only the labels and the yes/no rows come from content/plans.ts. -1 reads "Unlimited".
  */
-export function buildRows(plans: PlanEntry[]): TableRow[] {
+export function buildRows(plans: PlanEntry[], catalog?: CatalogModel[]): TableRow[] {
   const by = (fn: (p: PlanEntry) => string): Record<string, string> => Object.fromEntries(plans.map((p) => [p.code, fn(p)]))
   const L = (p: PlanEntry) => p.limits
   const unit = (p: PlanEntry, key: string) => p.payg?.unit_prices[key]
@@ -39,7 +47,7 @@ export function buildRows(plans: PlanEntry[]): TableRow[] {
       cells: by((p) => (p.code === 'payg' ? WORDS.paygPrice : p.prices.month != null ? rupees(p.prices.month) : '₹0')),
     },
     { key: 'priceYear', label: ROW_LABELS.priceYear, cells: by((p) => (p.prices.year != null ? rupees(p.prices.year) : WORDS.no)) },
-    { key: 'models', label: ROW_LABELS.models, cells: by((p) => p.groups.map(cap).join(', ')) },
+    { key: 'models', label: ROW_LABELS.models, cells: by((p) => modelsCell(p, catalog)) },
     { key: 'messagesPerDay', label: ROW_LABELS.messagesPerDay, cells: by((p) => formatLimit(L(p).messages_per_day)) },
     {
       key: 'bestPerDay', label: ROW_LABELS.bestPerDay,
@@ -48,7 +56,7 @@ export function buildRows(plans: PlanEntry[]): TableRow[] {
         return n === 0 ? WORDS.notIncluded : n === -1 ? WORDS.unlimited : WORDS.bestThenSmart(formatLimit(n))
       }),
     },
-    { key: 'ultra', label: ROW_LABELS.ultra, cells: by((p) => (p.groups.includes('ultra') ? WORDS.yes : WORDS.no)) },
+    { key: 'ultra', label: ROW_LABELS.ultra, cells: by(() => (plans.some((p) => p.code === 'payg') ? WORDS.withCredits : WORDS.no)) },
     { key: 'branches', label: ROW_LABELS.branches, cells: by((p) => formatLimit(L(p).branches_per_tree)) },
     { key: 'messagesPerConversation', label: ROW_LABELS.messagesPerConversation, cells: by((p) => formatLimit(L(p).messages_per_conversation)) },
     { key: 'memoryFacts', label: ROW_LABELS.memoryFacts, cells: by((p) => formatLimit(L(p).memory_facts)) },

@@ -34,3 +34,18 @@ export function formatLimit(n: number | null | undefined): string {
   if (n == null) return '—'
   return new Intl.NumberFormat('en-IN').format(n)
 }
+
+/** "1 Dec" in IST (the day an allowance refreshes). */
+export function formatIstDay(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Intl.DateTimeFormat('en-GB', { timeZone: IST, day: 'numeric', month: 'short' }).format(d)
+}
+
+/** Megabytes -> "100 MB" / "2 GB"; -1 is "Unlimited". */
+export function formatMb(mb: number | null | undefined): string {
+  if (mb === -1) return 'Unlimited'
+  if (mb == null) return '—'
+  return mb >= 1024 && mb % 1024 === 0 ? `${mb / 1024} GB` : `${formatLimit(mb)} MB`
+}

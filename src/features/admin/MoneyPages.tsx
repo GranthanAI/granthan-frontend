@@ -1,3 +1,4 @@
+import { groupLabel } from '@/content/plans'
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Skeleton, TextField } from '@/components/ui/primitives'
@@ -172,7 +173,7 @@ export function PricesPage() {
       {prices.isSuccess && (
         <table className="w-full text-left text-sm" aria-label="Model prices">
           <thead><tr className="border-b border-line text-ink-3"><th className="py-2">Model</th><th>Group</th><th>Input</th><th>Cached</th><th>Output</th><th>Effective from</th></tr></thead>
-          <tbody>{prices.data.prices.map((r) => <tr key={`${r.model}${r.effective_from}`} className="border-b border-line/60"><td className="py-1.5">{r.model}</td><td>{r.model_group}</td><td>{r.input_usd_per_m}</td><td>{r.cached_input_usd_per_m ?? '—'}</td><td>{r.output_usd_per_m}</td><td>{formatIstDate(r.effective_from)}</td></tr>)}</tbody>
+          <tbody>{prices.data.prices.map((r) => <tr key={`${r.model}${r.effective_from}`} className="border-b border-line/60"><td className="py-1.5">{r.model}</td><td>{groupLabel(r.model_group)}</td><td>{r.input_usd_per_m}</td><td>{r.cached_input_usd_per_m ?? '—'}</td><td>{r.output_usd_per_m}</td><td>{formatIstDate(r.effective_from)}</td></tr>)}</tbody>
         </table>
       )}
 
@@ -195,7 +196,7 @@ export function PricesPage() {
           <div className="grid grid-cols-2 gap-2">
             <TextField label="Model id" value={p.model} onChange={(e) => setP({ ...p, model: e.target.value })} />
             <TextField label="Provider" value={p.provider} onChange={(e) => setP({ ...p, provider: e.target.value })} />
-            <label className="text-sm"><span className="mb-1.5 block font-medium">Group</span><select value={p.group} onChange={(e) => setP({ ...p, group: e.target.value })} className="h-10 w-full rounded-lg border border-line bg-raised px-3 text-sm">{['fast', 'smart', 'best', 'ultra'].map((g) => <option key={g}>{g}</option>)}</select></label>
+            <label className="text-sm"><span className="mb-1.5 block font-medium">Group</span><select value={p.group} onChange={(e) => setP({ ...p, group: e.target.value })} className="h-10 w-full rounded-lg border border-line bg-raised px-3 text-sm">{['fast', 'smart', 'best', 'ultra'].map((g) => <option key={g} value={g}>{groupLabel(g)}</option>)}</select></label>
             <TextField label="Effective from" type="date" value={p.from} onChange={(e) => setP({ ...p, from: e.target.value })} />
             <TextField label="Input $/M" value={p.input} onChange={(e) => setP({ ...p, input: e.target.value })} />
             <TextField label="Cached input $/M (optional)" value={p.cached} onChange={(e) => setP({ ...p, cached: e.target.value })} />

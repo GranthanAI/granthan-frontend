@@ -8,7 +8,7 @@ export type LimitKey = (typeof LIMIT_KEYS)[number]
 
 export const LIMIT_LABELS: Record<LimitKey, string> = {
   messages_per_day: 'Messages per day',
-  best_per_day: 'Best-model messages per day',
+  best_per_day: 'Advanced answers every day',
   branches_per_tree: 'Branches per tree',
   messages_per_conversation: 'Messages per conversation',
   memory_facts: 'Memory facts',

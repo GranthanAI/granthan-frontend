@@ -9,10 +9,10 @@ export const FREE_LIMITS: PlanLimits = {
 export const PRO_LIMITS: PlanLimits = {
   ...FREE_LIMITS, messages_per_day: 60, branches_per_tree: 100, messages_per_conversation: 200, memory_facts: 200,
   context_tokens: 32000, documents_per_tree: 10, file_size_mb: 50, youtube_per_month: 30, storage_mb: 2048,
-  custom_modes: 10, mode_instruction_chars: 3000,
+  custom_modes: 10, mode_instruction_chars: 3000, best_per_day: 5,
 }
 export const MAX_LIMITS: PlanLimits = {
-  ...PRO_LIMITS, messages_per_day: 80, best_per_day: 12, memory_facts: -1, context_tokens: 128000,
+  ...PRO_LIMITS, messages_per_day: 80, best_per_day: 15, memory_facts: -1, context_tokens: 128000,
   file_size_mb: 100, youtube_per_month: 100, storage_mb: 10240, custom_modes: -1,
 }
 
@@ -69,8 +69,8 @@ export const modelsFree: MyModelsResponse = {
   groups: [
     g('fast', true, [['llama-fast', 'Llama Fast']]),
     g('smart', false, [['llama-smart', 'Llama Smart']], { upgrade_to: 'pro' }),
-    g('best', false, [['best-1', 'Best One']], { upgrade_to: 'max', daily_limit: 0, remaining_today: 0 }),
-    g('ultra', false, [['ultra-1', 'Ultra One']], { upgrade_to: 'max' }),
+    g('best', false, [['best-1', 'Best One']], { upgrade_to: 'pro', daily_limit: 0, remaining_today: 0 }),
+    g('ultra', false, [['ultra-1', 'Ultra One']], { upgrade_to: 'payg' }),
   ],
 }
 export const modelsPro: MyModelsResponse = {
@@ -79,8 +79,8 @@ export const modelsPro: MyModelsResponse = {
   groups: [
     g('fast', true, [['llama-fast', 'Llama Fast']]),
     g('smart', true, [['llama-smart', 'Llama Smart']]),
-    g('best', false, [['best-1', 'Best One']], { upgrade_to: 'max', daily_limit: 0, remaining_today: 0 }),
-    g('ultra', false, [['ultra-1', 'Ultra One']], { upgrade_to: 'max' }),
+    g('best', true, [['best-1', 'Best One']], { daily_limit: 5, remaining_today: 4 }),
+    g('ultra', false, [['ultra-1', 'Ultra One']], { upgrade_to: 'payg' }),
   ],
 }
 export const modelsMax: MyModelsResponse = {
@@ -89,7 +89,7 @@ export const modelsMax: MyModelsResponse = {
   groups: [
     g('fast', true, [['llama-fast', 'Llama Fast']]),
     g('smart', true, [['llama-smart', 'Llama Smart']]),
-    g('best', true, [['best-1', 'Best One']], { daily_limit: 12, remaining_today: 8 }),
+    g('best', true, [['best-1', 'Best One']], { daily_limit: 15, remaining_today: 8 }),
     g('ultra', true, [['ultra-1', 'Ultra One']]),
   ],
 }
@@ -99,9 +99,9 @@ export const plansResponse: PlansResponse = {
   currency: 'INR',
   gst_inclusive: true,
   plans: [
-    { code: 'free', version: 1, rank: 0, prices: {}, groups: ['fast'], extra_models: [], limits: FREE_LIMITS },
-    { code: 'pro', version: 1, rank: 1, prices: { month: 49900, year: 499000 }, groups: ['fast', 'smart'], extra_models: [], limits: PRO_LIMITS },
-    { code: 'max', version: 1, rank: 2, prices: { month: 149900, year: 1499000 }, groups: ['fast', 'smart', 'best', 'ultra'], extra_models: [], limits: MAX_LIMITS },
+    { code: 'free', version: 1, rank: 0, prices: {}, groups: ['fast'], extra_models: ['openai/gpt-oss-120b', 'claude-haiku-5-5', 'gpt-6-luna'], limits: FREE_LIMITS },
+    { code: 'pro', version: 1, rank: 1, prices: { month: 49900, year: 499000 }, groups: ['fast', 'smart', 'best'], extra_models: [], limits: PRO_LIMITS },
+    { code: 'max', version: 1, rank: 2, prices: { month: 149900, year: 1499000 }, groups: ['fast', 'smart', 'best'], extra_models: [], limits: MAX_LIMITS },
   ],
 }
 
@@ -116,3 +116,19 @@ export const invoicesResponse: InvoicesResponse = {
 export const denial = (reason: string, extra: Record<string, unknown> = {}) => ({
   detail: { code: 'billing_denied', reason, message_key: 'x', message: `backend says ${reason}`, upgrade_to: 'pro', ...extra },
 })
+
+/** The public model catalog (/billing/models) with the real names. */
+export const catalogResponse = {
+  models: [
+    { id: 'openai/gpt-oss-20b', label: 'GPT-OSS 20B', provider: 'groq', group: 'fast', sort_order: 0 },
+    { id: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', provider: 'google', group: 'fast', sort_order: 1 },
+    { id: 'openai/gpt-oss-120b', label: 'GPT-OSS 120B', provider: 'groq', group: 'smart', sort_order: 2 },
+    { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5', provider: 'anthropic', group: 'smart', sort_order: 3 },
+    { id: 'gpt-6-luna', label: 'GPT-6 Luna', provider: 'openai', group: 'smart', sort_order: 4 },
+    { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite', provider: 'google', group: 'smart', sort_order: 5 },
+    { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', provider: 'google', group: 'smart', sort_order: 6 },
+    { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', provider: 'anthropic', group: 'best', sort_order: 7 },
+    { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol', provider: 'openai', group: 'best', sort_order: 8 },
+    { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', provider: 'anthropic', group: 'ultra', sort_order: 9 },
+  ],
+}

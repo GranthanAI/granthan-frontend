@@ -451,7 +451,8 @@ describe('pricing page', () => {
     expect(within(proCard).getByText('₹499')).toBeInTheDocument()
     const cell = (row: string, plan: string) => document.querySelector(`[data-row=${row}] [data-plan=${plan}]`)
     expect(cell('messagesPerDay', 'pro')).toHaveTextContent('60')
-    expect(cell('bestPerDay', 'free')).toHaveTextContent('Not included')
+    expect(cell('bestPerDay', 'free')).toHaveTextContent('—')
+    expect(cell('bestPerDay', 'pro')).toHaveTextContent('5 included daily · continues on Smart')
     expect(cell('memoryFacts', 'max')).toHaveTextContent('Unlimited')
     const maxCard = document.querySelector('[data-plan=max]') as HTMLElement
     await userEvent.click(screen.getByRole('radio', { name: 'Yearly' }))

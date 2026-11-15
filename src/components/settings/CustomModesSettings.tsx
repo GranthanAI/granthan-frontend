@@ -113,7 +113,7 @@ export function CustomModesSettings() {
           </Alert>
         )}
         {list.data && atLimit && (
-          <Alert tone="info">You have reached the limit of {max} custom modes. Archive one to create another.</Alert>
+          <Alert tone="info">You have all {max} custom modes your plan includes. Archive one to create another, or see plans for more.</Alert>
         )}
         {list.data && items.length === 0 && !editing && (
           <EmptyState title="No custom modes yet">Create one to reuse your favourite instructions across chats.</EmptyState>

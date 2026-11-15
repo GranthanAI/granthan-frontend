@@ -272,6 +272,8 @@ export interface BillingDenied {
   resets_at?: string
   upgrade_to?: PlanCode | null
   limit?: string
+  /** the model that was refused, when the service says (model_not_in_plan) */
+  model?: string
 }
 /** A plan_limit denial: `limit` names which one (file_size_mb, branches_per_tree, ...). */
 export interface PlanLimitDenied extends BillingDenied {

@@ -56,6 +56,7 @@ export function billingDenialOf(detail: unknown, fallbackMessage = ''): BillingD
     resets_at: str(d.resets_at),
     upgrade_to: str(d.upgrade_to) ?? null,
     limit: str(d.limit),
+    model: str(d.model),
   }
 }
 
