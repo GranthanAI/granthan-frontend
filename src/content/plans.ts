@@ -109,3 +109,12 @@ export const SPEND_CAP_NOTICE = {
   80: "You've used 80% of your monthly spend cap.",
   100: 'You\'ve reached your monthly spend cap. Sending is paused until the cap is raised or next month.',
 } as const
+
+/** The pricing page's own words. */
+export const POPULAR_PLAN = 'pro'
+export const PRICING_COPY = {
+  subtitle: 'Start free. Upgrade when you need more messages, smarter models and more room to learn.',
+  popular: 'Most popular',
+  paygTagline: 'Top up credits, spend them as you go',
+  footnote: 'You can change or cancel a plan at any time from Settings → Billing.',
+} as const
