@@ -38,7 +38,7 @@ Requires Node ≥ 22. (`npm install` may print `EBADENGINE` warnings on 22.11; t
 | `npm run build` | Type-check (`tsc -b`) + production build to `dist/` |
 | `npm run preview` | Serve the production build on 127.0.0.1:3000 |
 | `npm run typecheck` / `npm run lint` / `npm run format` | TypeScript, ESLint, Prettier |
-| `npm test` | Vitest + Testing Library (happy-dom) |
+| `npm test` | Vitest + Testing Library (happy-dom). Run single files (`npx vitest run src/test/<file>.test.tsx`); on Windows start from a shell whose working directory has an upper-case drive letter (`C:/...`), otherwise Vitest fails in its setup file |
 
 ## Architecture
 
@@ -91,6 +91,64 @@ Key decisions:
   uploaded from the new-chat screen (which File Service cannot link to a conversation).
 - If an attached document cannot be searched (no access, still indexing, indexing failed, service down) the reply is
   a clear error instead of an answer that pretends to have read it.
+
+## Billing, plans and payments
+
+The UI for the billing integration (plans, model picker, usage meter, limit messages, checkout, invoices, account
+deletion). Everything goes through the gateway under `/api/v1/billing/...`; the amounts, limits and model lists always
+come from the API, never from constants in the UI (the one exception is the GST state list, see below).
+
+| Where | What |
+|---|---|
+| Composer | **Model picker** next to the tool picker (Auto, then Fast / Smart / Best / Ultra; models the plan does not include are greyed with the plan that unlocks them and link to `/pricing`; the choice is kept per conversation; "Set as default" saves `default_model`). **Usage meter** under the box ("31 of 80 messages today · resets 12:00 am", amber at 80%, red at 100%). Hidden when `/billing/me/models` fails. |
+| Above the composer | **Billing notices**: an inline banner (never a toast, the draft is kept) for every refusal in plan 4.6: daily / monthly limit ("Resets at <IST time>"), model not in plan, blocked, no credit, spend caps, billing unavailable, and `plan_limit` from any service (uploads, YouTube, branches, documents, messages per conversation, custom modes, instruction length, memory facts). A quiet dismissible banner for the server's `notice` stream events ("You've used 80% of today's messages"). |
+| Top of every page | Payments are simulated, payment failed (Pay now), suspended, plan ends on <date> (Resume). |
+| `/pricing` | Public (works signed out). Monthly / yearly, GST-inclusive prices, limits, current plan marked. Signed out: Upgrade goes to sign-up and back. |
+| Checkout dialog | Needs a verified email. Asks for the GST state (place of supply) and optionally a GSTIN and business name, then pays through the simulator or Razorpay. Also used to change plan and to resume. |
+| Settings → Billing | Plan, status, renewal / end date, change plan, cancel (confirmation shows the access-until date), resume, invoices and credit notes listed separately with authenticated PDF download. |
+| Settings → AI preferences | Default model. |
+| Settings → Memory | "5 of 50 facts used". |
+| Settings → Security | Delete account (password re-check, subscription cancelled, data deleted after 30 days). |
+
+### Environment
+
+| Variable | Meaning |
+|---|---|
+| `VITE_API_BASE_URL` | Gateway base URL including `/api/v1`. The simulator popup is opened on **this origin** and only messages from it are accepted. |
+| `VITE_SUPPORT_EMAIL` | Optional. Target of "Contact support" (a `mailto:`). Default `support@granthan.ai`. |
+
+For the payment simulator to hand its result back, the page you open must be exactly the origin that billing-service
+has as `FRONTEND_ORIGIN` (the dev value is `http://localhost:5173`), and the API host must be on the same site (the refresh
+cookie is `SameSite=Strict`):
+
+```bash
+VITE_API_BASE_URL=http://localhost:8080/api/v1 npm run dev -- --host localhost --port 5173   # open http://localhost:5173
+```
+
+The gateway must also allow the `Idempotency-Key` request header in CORS: every billing POST sends it (billing requires
+it). If the browser console shows a failed preflight on `/billing/checkout`, that header is missing from the gateway's
+`allow_headers` (see `reports/P9-report.md`).
+
+### How the simulator popup works
+
+1. The click handler opens a blank popup **synchronously** (`window.open('about:blank', ...)`) so pop-up blockers allow it.
+2. `POST /billing/checkout` returns `provider: "simulator"` and `simulator_url`, a **path** (`/api/v1/billing/sim/checkout/<id>?t=<token>`).
+   The UI builds the URL from the origin of `VITE_API_BASE_URL` (a value that is not a plain path is refused) and points the popup at it.
+   If anything fails, the popup is closed again.
+3. The simulated payment page calls `window.opener.postMessage({ source: 'granthan-sim-checkout', razorpay_payment_id, razorpay_subscription_id, razorpay_signature }, FRONTEND_ORIGIN)`.
+4. The app accepts a message only if `event.origin` equals the API origin **and** `data.source === 'granthan-sim-checkout'` and the three
+   fields are strings; everything else is ignored.
+5. It then calls `POST /billing/checkout/verify` once, with an `Idempotency-Key` that is reused if the same attempt is retried. The listener is
+   removed on success, cancel or unmount. Closing the popup without paying shows "Payment not completed" and Try again.
+6. With `provider: "razorpay"` the same flow runs with Razorpay's own modal (`checkout.js` is loaded once, with a timeout and an error state).
+7. After verification the plan, the model list, usage and invoices are refetched, so newly unlocked models appear at once.
+
+Test card / UPI for the simulator: card `4111 1111 1111 1111`, UPI `success@razorpay`, OTP any six digits except `000000`.
+
+### GST state list
+
+`src/lib/gst-states.ts` is the only copy of the GST state / union-territory codes (billing does not expose them). It is copied from
+billing-service `src/billing/domain/india.py`; keep the two in step.
 
 ## Not available (by design, not simulated)
 
