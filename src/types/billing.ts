@@ -20,7 +20,19 @@ export interface PlanLimits {
 }
 export type LimitName = keyof PlanLimits
 
+/** Pay as you Go numbers (paise), sent with the payg entry of /billing/plans. */
+export interface PaygInfo {
+  unit_prices: Record<string, number>
+  topup_packs: Array<{ code: string; price_paise: number }>
+  credit_validity_months: number
+  storage_over_10gb_per_gb_month: number
+  long_message_tokens: number
+  no_credit_fast_per_day: number
+  max_messages_per_minute: number
+}
+
 export interface PlanEntry {
+  payg?: PaygInfo
   code: PlanCode
   version: number
   rank: number

@@ -1,6 +1,7 @@
 import { AlertCircle, Info, X } from 'lucide-react'
 import { Link, useInRouterContext } from 'react-router-dom'
-import { useBillingMe } from '@/features/billing/hooks'
+import { SPEND_CAP_NOTICE, limitCopy } from '@/content/plans'
+import { useBillingMe, usePlans } from '@/features/billing/hooks'
 import { supportEmail } from '@/lib/config'
 import { formatIstTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -29,10 +30,11 @@ const FALLBACK: Record<string, string> = {
 
 /** Which actions each reason offers (plan 4.6). `resets` shows "Resets at <IST time>" when billing gave a time. */
 export function noticeActions(d: BillingDenied, payUrl: string | null | undefined) {
-  const upgrade = ['daily_limit', 'monthly_limit', 'model_not_in_plan', 'plan_limit', 'no_credit'].includes(d.reason)
+  const copy = limitCopy(d.message_key)
+  const upgrade = copy?.upgrade ?? ['daily_limit', 'monthly_limit', 'model_not_in_plan', 'plan_limit', 'no_credit'].includes(d.reason)
   return {
     upgrade,
-    resets: (d.reason === 'daily_limit' || d.reason === 'monthly_limit') && !!d.resets_at,
+    resets: (copy?.resets ?? ['daily_limit', 'monthly_limit', 'rate_limit'].includes(d.reason)) && !!d.resets_at,
     payNow: !!payUrl && (d.reason === 'account_blocked' || d.reason === 'no_credit'),
     support: ['account_blocked', 'spend_cap', 'member_spend_cap', 'billing_unavailable'].includes(d.reason),
   }
@@ -42,12 +44,19 @@ export function noticeActions(d: BillingDenied, payUrl: string | null | undefine
 export function BillingNotice({ denial, onDismiss }: { denial: BillingDenied; onDismiss?: () => void }) {
   const me = useBillingMe().data
   const a = noticeActions(denial, me?.payment_action_url)
-  const message = denial.message || FALLBACK[denial.reason] || 'This request was not allowed on your plan.'
+  const copy = limitCopy(denial.message_key)
+  const plans = usePlans().data?.plans
+  const payg = Array.isArray(plans) ? plans.find((p) => p.code === 'payg')?.payg : undefined
+  // our words for a known message_key; the API's own message for anything else
+  const message = copy?.message ?? (denial.message || FALLBACK[denial.reason] || 'This request was not allowed on your plan.')
+  // the numbers in a hint come from the API when it sends them (the 10 Fast messages a day)
+  const hint = copy?.hint && denial.message_key === 'credits.empty' && payg ? `Fast models stay available for ${payg.no_credit_fast_per_day} messages a day` : copy?.hint
   return (
     <div role="alert" data-testid="billing-notice" data-reason={denial.reason} className="mb-2 flex items-start gap-2 rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">
       <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
       <div className="min-w-0 flex-1 space-y-1.5">
         <p>{message}</p>
+        {hint && <p className="opacity-90">{hint}</p>}
         {a.resets && <p className="font-medium">Resets at {formatIstTime(denial.resets_at)}</p>}
         {(a.upgrade || a.payNow || (a.support && !!supportEmail())) && (
           <div className="flex flex-wrap gap-2">
@@ -68,6 +77,7 @@ export function BillingNotice({ denial, onDismiss }: { denial: BillingDenied; on
 
 /** Quiet, dismissible usage notice from the response stream ("You've used 80% of today's messages"). */
 export function quietMessage(n: StreamNotice): string {
+  if (n.metric === 'spend_cap') return n.notice_key.endsWith('threshold_100') ? SPEND_CAP_NOTICE[100] : SPEND_CAP_NOTICE[80]
   const what = n.metric === 'best' ? "today's Best-model messages" : n.metric === 'youtube' ? "this month's video transcripts" : n.metric && n.metric !== 'messages' ? `your ${n.metric.replace(/_/g, ' ')} allowance` : "today's messages"
   if (n.notice_key.endsWith('threshold_100')) return `You've used all of ${what}.`
   const m = /threshold_(\d+)$/.exec(n.notice_key)

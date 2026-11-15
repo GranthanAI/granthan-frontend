@@ -2,6 +2,7 @@ import { lazy, memo, Suspense, useState } from 'react'
 import { AlertCircle, Check, ChevronDown, Copy, FileText, Paperclip, RefreshCw, StepForward } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/primitives'
+import { limitCopy } from '@/content/plans'
 import { useMyModels } from '@/features/billing/hooks'
 import { youtubeService } from '@/services/youtube.service'
 import { timecode, videoLink, youtubeDocTitle } from '@/features/uploads/youtube'
@@ -222,7 +223,7 @@ function AnsweredBy({ model, noticeKey }: { model: string; noticeKey?: string | 
     <div className="mt-2 space-y-1 text-xs text-ink-3">
       <p>Answered by {label}</p>
       {noticeKey === 'limit.best_switched' && (
-        <p role="note" className="text-warn">You've used today's Best-model messages, so this answer uses a Smart model.</p>
+        <p role="note" className="text-warn">{limitCopy('limit.best_switched')?.message}</p>
       )}
     </div>
   )

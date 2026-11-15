@@ -1,32 +1,17 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Check } from 'lucide-react'
 import { Alert, Button, Logo, Skeleton } from '@/components/ui/primitives'
 import { CheckoutDialog, changeDirection, type CheckoutKind } from '@/features/billing/CheckoutDialog'
 import { useBillingMe, usePlans } from '@/features/billing/hooks'
 import { errorMessage } from '@/lib/errors'
-import { formatLimit, formatPaise } from '@/lib/format'
+import { formatPaise } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useRestoreSession } from '@/app/router'
-import type { BillingInterval, PlanEntry, PlanLimits } from '@/types/billing'
-
-const LIMIT_ROWS: Array<[keyof PlanLimits, string]> = [
-  ['messages_per_day', 'Messages per day'],
-  ['best_per_day', 'Best-model messages per day'],
-  ['messages_per_conversation', 'Messages per conversation'],
-  ['context_tokens', 'Context window (tokens)'],
-  ['memory_facts', 'Saved memory facts'],
-  ['documents_per_tree', 'Documents per conversation tree'],
-  ['file_size_mb', 'Largest file (MB)'],
-  ['storage_mb', 'Storage (MB)'],
-  ['youtube_per_month', 'YouTube transcripts per month'],
-  ['branches_per_tree', 'Branches per tree'],
-  ['custom_modes', 'Custom modes'],
-  ['mode_instruction_chars', 'Custom mode instruction length'],
-]
+import type { BillingInterval, PlanEntry } from '@/types/billing'
+import { buildRows } from '@/features/billing/planTable'
+import { WORDS, planCopy } from '@/content/plans'
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-const limitText = (key: keyof PlanLimits, v: number) => (key === 'best_per_day' && v === 0 ? 'Not included' : formatLimit(v))
 
 /** Public: reachable signed in and signed out. Prices are GST-inclusive INR from /billing/plans. */
 export function PricingPage() {
@@ -38,7 +23,9 @@ export function PricingPage() {
   const [interval, setInterval] = useState<BillingInterval>('month')
   const [checkout, setCheckout] = useState<{ kind: CheckoutKind; plan: PlanEntry } | null>(null)
 
-  const list = [...(plans.data?.plans ?? [])].sort((a, b) => a.rank - b.rank)
+  // Free, Pro, Max by rank; Pay as you Go (rank 0: credits never outrank a plan) always last
+  const order = (p: PlanEntry) => (p.code === 'payg' ? 1000 : p.rank)
+  const list = [...(plans.data?.plans ?? [])].sort((a, b) => order(a) - order(b))
   const current = signedIn ? me?.plan.code : undefined
   const currentInterval = me?.plan.interval ?? null
 
@@ -107,10 +94,10 @@ export function PricingPage() {
                     {onThisPlan && <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-semibold text-accent-ink">Current plan</span>}
                   </div>
                   <p className="mt-3 text-3xl font-semibold">
-                    {isFree ? '₹0' : formatPaise(price)}
+                    {plan.code === 'payg' ? WORDS.paygPrice : isFree ? '₹0' : formatPaise(price!)}
                     {!isFree && <span className="text-sm font-normal text-ink-3"> / {interval === 'year' ? 'year' : 'month'}</span>}
                   </p>
-                  <p className="text-xs text-ink-3">{isFree ? 'Free forever' : 'Includes GST'}</p>
+                  <p className="text-xs text-ink-3">{plan.code === 'payg' ? 'Top up credits, spend them as you go' : isFree ? 'Free forever' : 'Includes GST'}</p>
 
                   <div className="mt-4">
                     {isFree ? null : (
@@ -126,23 +113,45 @@ export function PricingPage() {
                     )}
                   </div>
 
-                  <ul className="mt-5 space-y-1.5 text-sm" aria-label={`${cap(plan.code)} limits`}>
-                    <li className="flex gap-2 text-ink-2"><Check className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />{plan.groups.map(cap).join(', ')} models</li>
-                    {LIMIT_ROWS.map(([key, text]) => (
-                      <li key={key} className="flex justify-between gap-3 border-t border-line/60 pt-1.5 text-ink-2">
-                        <span>{text}</span>
-                        <span className="font-medium text-ink">{limitText(key, plan.limits[key])}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="mt-4 text-sm text-ink-2">{planCopy(plan.code).bestFor}</p>
                 </li>
               )
             })}
           </ul>
         )}
+
+        {plans.data && <ComparisonTable plans={list} />}
       </main>
 
       {checkout && <CheckoutDialog kind={checkout.kind} plan={checkout.plan} interval={interval} onClose={() => setCheckout(null)} />}
     </div>
+  )
+}
+
+/** Every row of the plan sheet. The Pay as you Go column is there only when the API lists that plan. */
+function ComparisonTable({ plans }: { plans: PlanEntry[] }) {
+  const rows = buildRows(plans)
+  return (
+    <section className="mt-10" aria-labelledby="compare-title">
+      <h2 id="compare-title" className="text-xl font-semibold">Compare plans</h2>
+      <div className="mt-4 overflow-x-auto rounded-2xl border border-line bg-raised">
+        <table className="w-full min-w-[40rem] text-left text-sm">
+          <thead>
+            <tr className="border-b border-line">
+              <th scope="col" className="px-4 py-3 font-medium text-ink-3"><span className="sr-only">Feature</span></th>
+              {plans.map((p) => <th key={p.code} scope="col" className="px-4 py-3 font-semibold">{planCopy(p.code).name}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.key} data-row={r.key} className="border-b border-line/60 last:border-0">
+                <th scope="row" className="px-4 py-2.5 font-normal text-ink-2">{r.label}</th>
+                {plans.map((p) => <td key={p.code} data-plan={p.code} className="px-4 py-2.5 font-medium text-ink">{r.cells[p.code]}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   )
 }
