@@ -201,7 +201,7 @@ describe('Settings → AI preferences: default model', () => {
     ...over,
   })
 
-  it('offers Auto and the models the plan allows, and saves the choice', async () => {
+  it('offers the models the plan allows, and saves the choice', async () => {
     const calls = mock({
       handler: (c) => {
         if (c.path === '/preferences' && c.method === 'GET') return json(200, prefs())
@@ -211,7 +211,7 @@ describe('Settings → AI preferences: default model', () => {
     page(<AiPreferencesSettings />)
     const select = await screen.findByLabelText('Default model')
     const options = within(select).getAllByRole('option').map((o) => o.textContent)
-    expect(options).toEqual(['Auto (let GranthanAI choose)', 'Llama Fast (fast)', 'Llama Smart (smart)'])
+    expect(options).toEqual(['Llama Fast (fast)', 'Llama Smart (smart)'])
     await userEvent.selectOptions(select, 'llama-smart')
     await userEvent.click(screen.getByRole('button', { name: 'Save preferences' }))
     await waitFor(() => expect(calls.some((c) => c.method === 'PATCH')).toBe(true))

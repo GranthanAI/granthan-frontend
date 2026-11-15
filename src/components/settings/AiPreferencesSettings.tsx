@@ -5,6 +5,7 @@ import { SegmentedControl, SelectField, SettingsSection, TextAreaField } from '@
 import { usePreferences, useResetPreferences, useUpdatePreferences } from '@/features/preferences/usePreferences'
 import { useTools } from '@/features/tools/useTools'
 import { useMyModels } from '@/features/billing/hooks'
+import { defaultModelId } from '@/features/billing/model-selection'
 import { useAllModes } from '@/features/custom-modes/useCustomModes'
 import { ApiError, toApiError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -14,6 +15,10 @@ type Draft = Pick<
   Preferences,
   'default_mode' | 'default_tools' | 'answer_length' | 'tone' | 'language' | 'personal_instructions' | 'citations' | 'document_context' | 'default_model'
 >
+
+/** The saved default shown as a model: 'auto' (the old setting) means the standard default, GPT-OSS. */
+const usableDefault = (models: Parameters<typeof defaultModelId>[0], saved: string | undefined) =>
+  !saved || saved === 'auto' ? (defaultModelId(models) ?? '') : saved
 
 const pick = (p: Preferences): Draft => ({
   default_mode: p.default_mode,
@@ -138,14 +143,13 @@ export function AiPreferencesSettings() {
         {Array.isArray(myModels.data?.groups) && (
           <SelectField
             label="Default model"
-            value={draft.default_model ?? 'auto'}
+            value={usableDefault(myModels.data, draft.default_model)}
             onChange={(v) => set('default_model', v)}
             options={[
-              { value: 'auto', label: 'Auto (let GranthanAI choose)' },
               ...myModels.data.groups.flatMap((g) =>
                 g.models.filter((m) => g.allowed && m.allowed).map((m) => ({ value: m.id, label: `${m.label} (${g.group})` })),
               ),
-              ...((draft.default_model ?? 'auto') !== 'auto' &&
+              ...(draft.default_model !== 'auto' && !!draft.default_model &&
               !myModels.data.groups.some((g) => g.allowed && g.models.some((m) => m.allowed && m.id === draft.default_model))
                 ? [{ value: draft.default_model!, label: `${draft.default_model} (not in your plan)` }]
                 : []),

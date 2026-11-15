@@ -38,8 +38,19 @@ export function adoptNewChatModel(newKey: string, conversationId: string) {
   setModel(newKey, null)
 }
 
+/**
+ * The model used until the user picks another: a GPT-OSS model the plan allows (in the plan's default group first, then
+ * Fast), else the first allowed model. There is no "Auto": the user always sees, and can change, the model in use.
+ */
+export function defaultModelId(models: MyModelsResponse | undefined): string | undefined {
+  if (!models) return undefined
+  const allowed = (group?: string) =>
+    models.groups.filter((g) => g.allowed && (!group || g.group === group)).flatMap((g) => g.models.filter((m) => m.allowed))
+  const oss = (list: ReturnType<typeof allowed>) => list.find((m) => m.id.includes('gpt-oss'))
+  return (oss(allowed(models.default_group)) ?? oss(allowed('fast')) ?? oss(allowed()) ?? allowed(models.default_group)[0] ?? allowed()[0])?.id
+}
+
 export function isModelAllowed(models: MyModelsResponse | undefined, id: string): boolean {
-  if (id === AUTO_MODEL) return true
   if (!models) return true // not loaded yet: let the server decide
   return models.groups.some((g) => g.allowed && g.models.some((m) => m.id === id && m.allowed))
 }
@@ -49,8 +60,9 @@ export function isModelAllowed(models: MyModelsResponse | undefined, id: string)
  * applies their saved default); a chosen model the plan no longer allows is sent as 'auto' rather than being refused.
  */
 export function modelForRequest(qc: QueryClient, key: string): string | undefined {
-  const chosen = useModelSelectionStore.getState().modelByKey[key]
-  if (!chosen) return undefined
   const models = qc.getQueryData<MyModelsResponse>(qk.billingModels)
-  return isModelAllowed(models, chosen) ? chosen : AUTO_MODEL
+  const chosen = useModelSelectionStore.getState().modelByKey[key]
+  if (chosen && chosen !== AUTO_MODEL && isModelAllowed(models, chosen)) return chosen
+  // Nothing (usable) chosen: the default model, sent explicitly so what the picker shows is what answers.
+  return defaultModelId(models) ?? (chosen === AUTO_MODEL ? undefined : chosen)
 }

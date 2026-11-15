@@ -7,7 +7,6 @@ import { PAYG_COPY } from '@/content/plans'
 import { usePaygPlan } from '@/features/billing/hooks'
 import { formatPaise } from '@/lib/format'
 import { useModelSelection } from '@/features/billing/useModelSelection'
-import { AUTO_MODEL } from '@/features/billing/model-selection'
 import { useUpdatePreferences } from '@/features/preferences/usePreferences'
 import { errorMessage } from '@/lib/errors'
 import { cn } from '@/lib/utils'
@@ -25,7 +24,7 @@ function PricingLink({ className, children, onNavigate }: { className: string; c
 }
 
 /**
- * Chooses the model for this conversation: Auto first, then Fast / Smart / Best / Ultra with the labels billing
+ * Chooses the model for this conversation: Fast / Smart / Best / Ultra with the labels billing
  * returns. Models the plan does not include are greyed with the plan that unlocks them and link to /pricing.
  * Renders nothing when the model list could not be loaded.
  */
@@ -91,22 +90,10 @@ export function ModelPicker({ selectionKey, disabled }: { selectionKey: string; 
       {open && (
         <div id={panelId} role="dialog" aria-label="Models" className="animate-in absolute bottom-full left-0 z-30 mb-2 w-[min(22rem,88vw)] rounded-xl border border-line bg-raised p-1.5 shadow-pop">
           <div role="radiogroup" aria-label="Model" className="max-h-80 overflow-y-auto">
-            <button
-              role="radio"
-              aria-checked={sel.value === AUTO_MODEL}
-              onClick={() => { sel.select(AUTO_MODEL); setOpen(false) }}
-              className={cn('flex w-full items-start gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2', sel.value === AUTO_MODEL && 'bg-accent-soft')}
-            >
-              {radio(sel.value === AUTO_MODEL)}
-              <span className="min-w-0">
-                <span className="block text-sm font-medium text-ink">Auto</span>
-                <span className="block text-xs text-ink-2">Let GranthanAI choose the best model for each message.</span>
-              </span>
-            </button>
             {data.groups.map((g) => {
               const limited = g.allowed && g.daily_limit > 0
               return (
-                <div key={g.group} role="group" aria-label={cap(g.group)} className="mt-1 border-t border-line pt-1">
+                <div key={g.group} role="group" aria-label={cap(g.group)} className="mt-1 border-t border-line pt-1 first:mt-0 first:border-t-0 first:pt-0">
                   <p className="flex items-center justify-between px-2.5 pb-1 pt-1.5 text-xs font-semibold uppercase tracking-wide text-ink-3">
                     <span>{cap(g.group)}</span>
                     {limited && <span className="font-medium normal-case tracking-normal text-ink-2">{g.remaining_today} {cap(g.group)} left today</span>}

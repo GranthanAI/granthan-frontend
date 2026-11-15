@@ -77,7 +77,7 @@ afterEach(() => {
 })
 
 describe('model picker', () => {
-  it('lists Auto first, then Fast, Smart, Best, Ultra with labels from the API; locked models say which plan unlocks them', async () => {
+  it('lists Fast, Smart, Best, Ultra with labels from the API; locked models say which plan unlocks them', async () => {
     mockApi({ models: modelsFree })
     renderComposer()
     await open()
@@ -85,7 +85,8 @@ describe('model picker', () => {
     const groups = within(dialog).getAllByRole('group').map((g) => g.getAttribute('aria-label'))
     expect(groups).toEqual(['Fast', 'Smart', 'Best', 'Ultra'])
     const radios = within(dialog).getAllByRole('radio')
-    expect(radios[0]).toHaveAccessibleName(/auto/i)
+    expect(within(dialog).queryByRole('radio', { name: /auto/i })).toBeNull()
+    expect(radios[0]).toHaveAccessibleName(/llama fast/i)
     expect(within(dialog).getByRole('radio', { name: /llama fast/i })).toBeEnabled()
     const locked = within(dialog).getByRole('link', { name: /llama smart/i })
     expect(locked).toHaveTextContent('Available on Pro')
@@ -123,10 +124,10 @@ describe('model picker', () => {
     expect(await screen.findByRole('button', { name: 'Model, Llama Smart' })).toBeInTheDocument()
   })
 
-  it('a saved default the plan no longer allows shows as Auto', async () => {
+  it('a saved default the plan no longer allows shows the default model', async () => {
     mockApi({ models: modelsFree, defaultModel: 'best-1' })
     renderComposer('new')
-    expect(await screen.findByRole('button', { name: 'Model, Auto' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Model, Llama Fast' })).toBeInTheDocument()
   })
 
   it('the choice is kept per conversation', async () => {
@@ -138,7 +139,7 @@ describe('model picker', () => {
     expect(useModelSelectionStore.getState().modelByKey).toEqual({ c1: 'llama-smart' })
     a.unmount()
     renderComposer('c2')
-    expect(await screen.findByRole('button', { name: 'Model, Auto' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Model, Llama Fast' })).toBeInTheDocument()
   })
 
   it('the new-chat choice moves to the conversation that was created', () => {
@@ -176,20 +177,20 @@ describe('the chosen model is sent', () => {
 
   it('on regenerate', async () => {
     const { sent } = mockApi()
-    useModelSelectionStore.getState().setModel('c1', 'auto')
+    useModelSelectionStore.getState().setModel('c1', 'llama-smart')
     expect(regenerate(newClient(), 'c1', 'a0')).toBe(true)
     await waitFor(() => expect(sent.some((r) => r.path.endsWith('/a0/regenerate'))).toBe(true))
-    expect(sent.find((r) => r.path.endsWith('/regenerate'))?.body).toEqual({ model: 'auto' })
+    expect(sent.find((r) => r.path.endsWith('/regenerate'))?.body).toEqual({ model: 'llama-smart' })
   })
 
-  it('a chosen model the plan no longer allows is sent as auto', async () => {
+  it('a chosen model the plan no longer allows is sent as the default model', async () => {
     const { sent } = mockApi()
     const qc = newClient()
     qc.setQueryData(['billing', 'me', 'models'], modelsFree)
     useModelSelectionStore.getState().setModel('c1', 'best-1')
     sendMessage(qc, 'c1', 'hi')
     await waitFor(() => expect(sent.some((r) => r.method === 'POST')).toBe(true))
-    expect(sent.find((r) => r.method === 'POST')?.body).toMatchObject({ model: 'auto' })
+    expect(sent.find((r) => r.method === 'POST')?.body).toMatchObject({ model: 'llama-fast' })
   })
 })
 
