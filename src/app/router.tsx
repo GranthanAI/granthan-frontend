@@ -24,6 +24,7 @@ const AdminReconciliation = money('ReconciliationPage')
 const AdminSettlements = money('SettlementsPage')
 const AdminPrices = money('PricesPage')
 const AdminPlans = lazy(() => import('@/features/admin/PlanEditorPage').then((m) => ({ default: m.PlanEditorPage })))
+const AdminSimulator = lazy(() => import('@/features/admin/SimulatorPage').then((m) => ({ default: m.SimulatorPage })))
 const PricingPage = lazy(() => import('@/pages/PricingPage').then((m) => ({ default: m.PricingPage })))
 const SettingsLayout = settingsPage('SettingsLayout')
 const ProfileSettings = settingsPage('ProfileSettings')
@@ -91,6 +92,7 @@ export const routes = [
           { path: 'reconciliation', element: <Suspense fallback={null}><AdminReconciliation /></Suspense> },
           { path: 'settlements', element: <Suspense fallback={null}><AdminSettlements /></Suspense> },
           { path: 'plans', element: <Suspense fallback={null}><AdminPlans /></Suspense> },
+          { path: 'simulator', element: <Suspense fallback={null}><AdminSimulator /></Suspense> },
           { path: 'prices', element: <Suspense fallback={null}><AdminPrices /></Suspense> },
         ],
       },
