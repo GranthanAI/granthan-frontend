@@ -15,6 +15,9 @@ import { useAuthStore } from '@/stores/auth.store'
 
 const settingsPage = <K extends string>(name: K) =>
   lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: (m as unknown as Record<K, React.ComponentType>)[name] })))
+const AdminLayout = lazy(() => import('@/features/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })))
+const AdminHome = lazy(() => import('@/features/admin/AdminHome').then((m) => ({ default: m.AdminHome })))
+const AdminAccounts = lazy(() => import('@/features/admin/AccountsPage').then((m) => ({ default: m.AccountsPage })))
 const PricingPage = lazy(() => import('@/pages/PricingPage').then((m) => ({ default: m.PricingPage })))
 const SettingsLayout = settingsPage('SettingsLayout')
 const ProfileSettings = settingsPage('ProfileSettings')
@@ -66,6 +69,20 @@ export const routes = [
       { path: '/verify-email', element: <VerifyEmailPage /> },
       { path: '/forgot-password', element: <ForgotPasswordPage /> },
       { path: '/reset-password', element: <ResetPasswordPage /> },
+    ],
+  },
+  {
+    // Staff console: signed in, then the layout itself shows the 404 page to anyone who is not staff.
+    element: <RequireAuth />,
+    children: [
+      {
+        path: '/admin',
+        element: <Suspense fallback={<FullScreenLoader />}><AdminLayout /></Suspense>,
+        children: [
+          { index: true, element: <Suspense fallback={null}><AdminHome /></Suspense> },
+          { path: 'accounts', element: <Suspense fallback={null}><AdminAccounts /></Suspense> },
+        ],
+      },
     ],
   },
   {
