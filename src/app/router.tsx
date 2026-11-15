@@ -18,6 +18,11 @@ const settingsPage = <K extends string>(name: K) =>
 const AdminLayout = lazy(() => import('@/features/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })))
 const AdminHome = lazy(() => import('@/features/admin/AdminHome').then((m) => ({ default: m.AdminHome })))
 const AdminAccounts = lazy(() => import('@/features/admin/AccountsPage').then((m) => ({ default: m.AccountsPage })))
+const money = (name: 'CostsPage' | 'ReconciliationPage' | 'SettlementsPage' | 'PricesPage') => lazy(() => import('@/features/admin/MoneyPages').then((m) => ({ default: m[name] })))
+const AdminCosts = money('CostsPage')
+const AdminReconciliation = money('ReconciliationPage')
+const AdminSettlements = money('SettlementsPage')
+const AdminPrices = money('PricesPage')
 const PricingPage = lazy(() => import('@/pages/PricingPage').then((m) => ({ default: m.PricingPage })))
 const SettingsLayout = settingsPage('SettingsLayout')
 const ProfileSettings = settingsPage('ProfileSettings')
@@ -81,6 +86,10 @@ export const routes = [
         children: [
           { index: true, element: <Suspense fallback={null}><AdminHome /></Suspense> },
           { path: 'accounts', element: <Suspense fallback={null}><AdminAccounts /></Suspense> },
+          { path: 'costs', element: <Suspense fallback={null}><AdminCosts /></Suspense> },
+          { path: 'reconciliation', element: <Suspense fallback={null}><AdminReconciliation /></Suspense> },
+          { path: 'settlements', element: <Suspense fallback={null}><AdminSettlements /></Suspense> },
+          { path: 'prices', element: <Suspense fallback={null}><AdminPrices /></Suspense> },
         ],
       },
     ],

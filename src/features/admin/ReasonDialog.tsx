@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { Dialog } from '@/components/ui/overlays'
 import { Alert, Button, TextField } from '@/components/ui/primitives'
 import { errorMessage } from '@/lib/errors'
@@ -26,6 +26,12 @@ export function ReasonDialog({
   const [word, setWord] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // The dialog re-focuses its first field whenever onClose changes identity, so hand it one that never does.
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  const busyRef = useRef(false)
+  busyRef.current = busy
+  const stableClose = useCallback(() => { if (!busyRef.current) closeRef.current() }, [])
   const ok = reason.trim().length >= MIN_REASON && (!typed || word === typed)
   const run = async () => {
     if (!ok || busy) return
@@ -40,7 +46,7 @@ export function ReasonDialog({
     }
   }
   return (
-    <Dialog open onClose={busy ? () => undefined : onClose} title={title} description={description}>
+    <Dialog open onClose={stableClose} title={title} description={description}>
       <form noValidate className="space-y-3" onSubmit={(e) => { e.preventDefault(); void run() }}>
         {error && <Alert tone="error">{error}</Alert>}
         {children}
