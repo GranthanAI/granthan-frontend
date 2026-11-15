@@ -50,6 +50,7 @@ const d = (reason: string, over: Partial<BillingDenied> = {}): BillingDenied => 
 })
 
 beforeEach(() => {
+  vi.stubEnv('VITE_SUPPORT_EMAIL', 'support@example.test')
   useAuthStore.setState({ status: 'authenticated', accessToken: 'tok', user: null, expired: false })
   useBillingNoticeStore.setState({ denied: {}, quiet: {}, dismissedQuiet: [] })
   useDraftStore.setState({ drafts: {} })
@@ -57,6 +58,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   cancelRun('c1')
+  vi.unstubAllEnvs()
   vi.unstubAllGlobals()
 })
 
@@ -85,7 +87,7 @@ describe('BillingNotice: every reason and its actions', () => {
       if (upgrade) expect(upgrade).toHaveAttribute('href', '/pricing')
       expect(!!within(n).queryByText(/^Resets at /)).toBe(want.resets)
       expect(!!within(n).queryByRole('link', { name: 'Contact support' })).toBe(want.support)
-      if (want.support) expect(within(n).getByRole('link', { name: 'Contact support' }).getAttribute('href')).toMatch(/^mailto:/)
+      if (want.support) expect(within(n).getByRole('link', { name: 'Contact support' }).getAttribute('href')).toBe('mailto:support@example.test')
     })
   }
 

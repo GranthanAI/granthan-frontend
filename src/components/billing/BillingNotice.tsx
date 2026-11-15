@@ -1,7 +1,7 @@
 import { AlertCircle, Info, X } from 'lucide-react'
 import { Link, useInRouterContext } from 'react-router-dom'
 import { useBillingMe } from '@/features/billing/hooks'
-import { SUPPORT_EMAIL } from '@/lib/config'
+import { supportEmail } from '@/lib/config'
 import { formatIstTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { useBillingNoticeStore } from '@/stores/billing-notice.store'
@@ -49,11 +49,11 @@ export function BillingNotice({ denial, onDismiss }: { denial: BillingDenied; on
       <div className="min-w-0 flex-1 space-y-1.5">
         <p>{message}</p>
         {a.resets && <p className="font-medium">Resets at {formatIstTime(denial.resets_at)}</p>}
-        {(a.upgrade || a.payNow || a.support) && (
+        {(a.upgrade || a.payNow || (a.support && !!supportEmail())) && (
           <div className="flex flex-wrap gap-2">
             {a.upgrade && <Action to="/pricing">Upgrade</Action>}
             {a.payNow && <Action href={me?.payment_action_url ?? undefined}>Pay now</Action>}
-            {a.support && <Action href={`mailto:${SUPPORT_EMAIL}`}>Contact support</Action>}
+            {a.support && supportEmail() && <Action href={`mailto:${supportEmail()}`}>Contact support</Action>}
           </div>
         )}
       </div>

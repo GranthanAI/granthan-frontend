@@ -7,8 +7,8 @@ export const API_BASE_URL = (
   raw && raw.trim() ? raw.trim() : 'http://localhost:8080/api/v1'
 ).replace(/\/+$/, '')
 
-/** Where "Contact support" goes (mailto:). Override with VITE_SUPPORT_EMAIL. */
-export const SUPPORT_EMAIL = ((import.meta.env.VITE_SUPPORT_EMAIL as string | undefined) || 'support@granthan.ai').trim()
+/** Where "Contact support" goes (mailto:): VITE_SUPPORT_EMAIL, read when asked. Empty = no address configured, no link shown. */
+export const supportEmail = (): string => ((import.meta.env.VITE_SUPPORT_EMAIL as string | undefined) ?? '').trim()
 
 export const REQUEST_TIMEOUT_MS = 30_000
 

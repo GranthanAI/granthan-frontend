@@ -59,3 +59,13 @@ export function invalidateBilling(qc: QueryClient, opts: { all?: boolean } = {})
     void qc.invalidateQueries({ queryKey: qk.billingInvoices })
   }
 }
+
+/** The GST state list, from billing (public, cacheable): there is no copy of it in the app. */
+export function useGstStates() {
+  return useQuery({ queryKey: qk.gstStates, queryFn: ({ signal }) => billingService.gstStates(signal), staleTime: 24 * 60 * 60_000, retry: 1 })
+}
+
+export function useBillingProfile() {
+  const enabled = useSignedIn()
+  return useQuery({ queryKey: qk.billingProfile, queryFn: ({ signal }) => billingService.profile(signal), enabled, staleTime: 30_000, retry: 1 })
+}

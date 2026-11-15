@@ -1,17 +1,18 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useInRouterContext } from 'react-router-dom'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, ExternalLink } from 'lucide-react'
 import { Dialog } from '@/components/ui/overlays'
 import { Alert, Button, Spinner, TextField } from '@/components/ui/primitives'
 import { errorMessage } from '@/lib/errors'
 import { formatIstDate, formatPaise } from '@/lib/format'
-import { GST_STATES, gstinError } from '@/lib/gst-states'
+import { gstinError } from '@/lib/gstin'
 import { cn, uuid } from '@/lib/utils'
 import { authService } from '@/services/auth.service'
 import { billingService } from '@/services/billing.service'
-import type { BillingInterval, PlanEntry, PlansResponse } from '@/types/billing'
-import { useBillingMe, usePlans } from './hooks'
+import { qk } from '@/lib/query-keys'
+import type { BillingInterval, ChangeQuote, PlanEntry, PlansResponse } from '@/types/billing'
+import { useBillingMe, useBillingProfile, useGstStates, usePlans } from './hooks'
 import { useCheckoutFlow } from './useCheckoutFlow'
 
 export type CheckoutKind = 'subscribe' | 'change' | 'resume'
@@ -26,11 +27,18 @@ export function changeDirection(plans: PlansResponse | undefined, fromCode: stri
   return fromInterval === 'month' && toInterval === 'year' ? 'upgrade' : 'downgrade'
 }
 
-/** The wording for each kind of change; the amounts are the ones billing's catalog gives (no estimates). */
-export function changeCopy(direction: ChangeDirection, price: number | undefined, periodEnd: string | null) {
-  if (direction === 'upgrade')
-    return `You'll pay ${price != null ? formatPaise(price) : 'the new plan price'} now for a new period; the unused days on your current plan go back to your original payment method.`
-  return `Starts on ${formatIstDate(periodEnd) || 'the end of your current period'}; authorise the new mandate now.`
+/**
+ * The wording for a plan change or resume, from billing's own quote (POST .../preview). Nothing is computed here:
+ * every amount and date shown is a field of the quote.
+ */
+export function quoteCopy(q: ChangeQuote): string {
+  if (q.kind === 'resume')
+    return `Authorise payment again to keep your plan. It starts on ${formatIstDate(q.effective_at)}, when your paid period ends.`
+  if (q.amount_due_now_paise > 0) {
+    const back = q.refund_paise > 0 ? `; ${formatPaise(q.refund_paise)} for unused days goes back to your original payment method` : ''
+    return `You'll pay ${formatPaise(q.amount_due_now_paise)} now for a new period${back}.`
+  }
+  return `Starts on ${formatIstDate(q.effective_at)}; authorise the new mandate now.`
 }
 
 interface Props {
@@ -49,12 +57,35 @@ export function CheckoutDialog({ kind, plan: planProp, interval, onClose }: Prop
   const plan = useMemo(() => planProp ?? plans?.plans.find((p) => p.code === me?.plan.code) ?? null, [planProp, plans, me])
   const planName = plan ? cap(plan.code) : 'your plan'
   const price = plan?.prices[interval]
+  const qc = useQueryClient()
+  const states = useGstStates()
+  const profile = useBillingProfile()
+  // billing's quote for a change / resume: shown as is, and the Pay button carries its amount
+  const quoteKey = ['billing', 'quote', kind, plan?.code ?? '', interval] as const
+  const quote = useQuery({
+    queryKey: quoteKey,
+    queryFn: () => (kind === 'resume' ? billingService.previewResume() : billingService.previewChange({ plan_code: plan!.code, interval })),
+    enabled: kind !== 'subscribe' && !!plan,
+    staleTime: 0,
+    gcTime: 0,
+    retry: false,
+  })
 
   const [stateCode, setStateCode] = useState('')
   const [legalName, setLegalName] = useState('')
   const [gstin, setGstin] = useState('')
   const [touched, setTouched] = useState(false)
-  const email = user.data?.email ?? ''
+  const email = profile.data?.billing_email || user.data?.email || ''
+  // prefill from the saved billing details (once, and never over what the user already typed)
+  const prefilled = useRef(false)
+  useEffect(() => {
+    if (prefilled.current || !profile.data) return
+    prefilled.current = true
+    const p = profile.data
+    setStateCode((v) => v || p.state_code || '')
+    setLegalName((v) => v || p.legal_name || '')
+    setGstin((v) => v || p.gstin || '')
+  }, [profile.data])
 
   const flow = useCheckoutFlow({ email })
   // One key per payment attempt: a retry of the same attempt replays the same checkout instead of creating another.
@@ -64,7 +95,6 @@ export function CheckoutDialog({ kind, plan: planProp, interval, onClose }: Prop
   const gErr = gstinError(gstin, stateCode)
   const needsDetails = kind === 'subscribe'
   const detailsOk = !needsDetails || (!!stateCode && !gErr)
-  const direction = kind === 'change' && plan ? changeDirection(plans, me?.plan.code ?? 'free', me?.plan.interval ?? null, plan, interval) : null
 
   const start = () => {
     setTouched(true)
@@ -72,6 +102,11 @@ export function CheckoutDialog({ kind, plan: planProp, interval, onClose }: Prop
     attemptKey.current ??= uuid()
     const key = attemptKey.current
     if (kind === 'subscribe') {
+      // keep what was entered for next time (future invoices only); a failure here never blocks the payment
+      void billingService
+        .saveProfile({ billing_email: email, state_code: stateCode, gstin: gstin.trim().toUpperCase() || null, legal_name: legalName.trim() || null })
+        .then((p) => qc.setQueryData(qk.billingProfile, p))
+        .catch(() => undefined)
       flow.begin(() =>
         billingService.checkout(
           { plan_code: plan.code, interval, state_code: stateCode, email, ...(legalName.trim() ? { legal_name: legalName.trim() } : {}), ...(gstin.trim() ? { gstin: gstin.trim().toUpperCase() } : {}) },
@@ -85,7 +120,7 @@ export function CheckoutDialog({ kind, plan: planProp, interval, onClose }: Prop
     }
   }
 
-  const title = kind === 'resume' ? `Resume ${planName}` : kind === 'change' ? (direction === 'downgrade' ? `Switch to ${planName}` : `Upgrade to ${planName}`) : `Subscribe to ${planName}`
+  const title = kind === 'resume' ? `Resume ${planName}` : kind === 'change' ? (quote.data && quote.data.amount_due_now_paise === 0 ? `Switch to ${planName}` : `Upgrade to ${planName}`) : `Subscribe to ${planName}`
   const busy = flow.phase === 'starting' || flow.phase === 'awaiting' || flow.phase === 'verifying'
   const verified = user.data?.is_email_verified === true
   // Must be stable: the dialog re-focuses its first field whenever onClose changes.
@@ -118,8 +153,9 @@ export function CheckoutDialog({ kind, plan: planProp, interval, onClose }: Prop
               <span className="font-medium">{planName} · {interval === 'year' ? 'yearly' : 'monthly'}</span>
               {price != null && <span className="font-semibold">{formatPaise(price)} <span className="text-xs font-normal text-ink-3">incl. GST</span></span>}
             </div>
-            {kind === 'change' && direction && <p className="mt-2 text-xs text-ink-2" data-testid="change-copy">{changeCopy(direction, price, me?.current_period_end ?? null)}</p>}
-            {kind === 'resume' && <p className="mt-2 text-xs text-ink-2">Authorise payment again to keep {planName} after {formatIstDate(me?.current_period_end) || 'this period'}.</p>}
+            {kind !== 'subscribe' && quote.isPending && <p role="status" className="mt-2 flex items-center gap-2 text-xs text-ink-3"><Spinner className="size-3" /> Working out the amounts…</p>}
+            {kind !== 'subscribe' && quote.data && <p className="mt-2 text-xs text-ink-2" data-testid="change-copy">{quoteCopy(quote.data)}</p>}
+            {kind !== 'subscribe' && quote.isError && <p role="alert" className="mt-2 text-xs text-danger">{errorMessage(quote.error)}</p>}
           </div>
 
           {needsDetails && (
@@ -134,7 +170,7 @@ export function CheckoutDialog({ kind, plan: planProp, interval, onClose }: Prop
                   className={cn('h-10 w-full rounded-lg border bg-raised px-3 text-sm', touched && !stateCode ? 'border-danger' : 'border-line')}
                 >
                   <option value="">Select your state…</option>
-                  {GST_STATES.map((s) => <option key={s.code} value={s.code}>{s.name} ({s.code})</option>)}
+                  {(states.data?.states ?? []).map((s) => <option key={s.code} value={s.code}>{s.name} ({s.code})</option>)}
                 </select>
                 {touched && !stateCode && <span role="alert" className="mt-1 block text-xs text-danger">Choose your state: it decides which GST applies.</span>}
               </label>
@@ -169,14 +205,20 @@ export function CheckoutDialog({ kind, plan: planProp, interval, onClose }: Prop
 
           <div className="flex justify-end gap-2">
             <Button onClick={onClose} disabled={flow.phase === 'verifying'}>Cancel</Button>
-            <Button variant="primary" onClick={start} loading={flow.phase === 'starting'} disabled={busy || !plan}>
-              {kind === 'resume' ? 'Resume' : kind === 'change' && direction === 'downgrade' ? 'Schedule and authorise' : price != null ? `Pay ${formatPaise(price)}` : 'Continue'}
+            <Button variant="primary" onClick={start} loading={flow.phase === 'starting'} disabled={busy || !plan || (kind !== 'subscribe' && !quote.data)}>
+              {actionLabel(kind, quote.data, price)}
             </Button>
           </div>
         </div>
       )}
     </Dialog>
   )
+}
+
+function actionLabel(kind: CheckoutKind, q: ChangeQuote | undefined, price: number | undefined): string {
+  if (kind === 'resume') return 'Resume'
+  if (kind === 'change') return q && q.amount_due_now_paise > 0 ? `Pay ${formatPaise(q.amount_due_now_paise)}` : 'Schedule and authorise'
+  return price != null ? `Pay ${formatPaise(price)}` : 'Continue'
 }
 
 function Success({ planName, onClose }: { planName: string; onClose: () => void }) {

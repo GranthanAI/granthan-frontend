@@ -152,7 +152,35 @@ export interface RazorpayCheckoutOptions {
   notes: Record<string, string>
   theme?: { color?: string }
 }
-export interface CheckoutResponse {
+/** What a plan change or resume costs and when it starts: computed by billing, never in the browser. */
+export interface ChangeQuote {
+  kind: 'upgrade' | 'downgrade' | 'interval_change' | 'resume'
+  amount_due_now_paise: number
+  refund_paise: number
+  effective_at: string
+  new_period_end: string
+  price_paise: number
+}
+
+export interface BillingProfile {
+  billing_email: string | null
+  state_code: string | null
+  state_name: string | null
+  gstin: string | null
+  legal_name: string | null
+}
+export interface BillingProfileInput {
+  billing_email: string
+  state_code: string
+  gstin?: string | null
+  legal_name?: string | null
+}
+export interface GstState {
+  code: string
+  name: string
+}
+
+export interface CheckoutResponse extends Partial<ChangeQuote> {
   subscription_id: string
   status: string
   razorpay: RazorpayCheckoutOptions

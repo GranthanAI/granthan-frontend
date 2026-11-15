@@ -5,12 +5,12 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PricingPage } from '@/pages/PricingPage'
 import { SignupPage } from '@/pages/AuthPages'
-import { CheckoutDialog, changeCopy } from '@/features/billing/CheckoutDialog'
+import { CheckoutDialog, quoteCopy } from '@/features/billing/CheckoutDialog'
 import { API_ORIGIN, loadRazorpay, simulatorPayload, simulatorUrl } from '@/features/billing/checkout-env'
-import { gstinError } from '@/lib/gst-states'
+import { gstinError } from '@/lib/gstin'
 import { qk } from '@/lib/query-keys'
 import { useAuthStore } from '@/stores/auth.store'
-import type { BillingInterval, BillingMe, CheckoutResponse, PlanEntry } from '@/types/billing'
+import type { BillingInterval, BillingMe, ChangeQuote, CheckoutResponse, PlanEntry } from '@/types/billing'
 import { invoicesResponse, meFree, meMax, mePro, modelsFree, modelsPro, plansResponse } from './billing-fixtures'
 
 const json = (status: number, body: unknown) =>
@@ -24,7 +24,15 @@ const simResponse: CheckoutResponse = {
 }
 const rzpResponse: CheckoutResponse = { ...simResponse, provider: 'razorpay', simulator_url: undefined }
 
+const STATES = [{ code: '10', name: 'Bihar' }, { code: '27', name: 'Maharashtra' }, { code: '29', name: 'Karnataka' }]
+const UPGRADE_QUOTE: ChangeQuote = {
+  kind: 'upgrade', amount_due_now_paise: 149900, refund_paise: 24950, effective_at: '2026-11-16T04:45:00+00:00',
+  new_period_end: '2026-12-16T04:45:00+00:00', price_paise: 149900,
+}
+
 interface Opts {
+  quote?: ChangeQuote
+  profile?: Record<string, unknown>
   me?: BillingMe
   verified?: boolean
   checkout?: () => Response | Promise<Response>
@@ -49,6 +57,9 @@ function mock(o: Opts = {}) {
     if (path === '/billing/me/usage') return json(200, { from: '', to: '', days: [] })
     if (path === '/billing/invoices') return json(200, invoicesResponse)
     if (path === '/auth/me') return json(200, { id: 'u1', email: o.email ?? 'a@example.com', is_email_verified: o.verified ?? true, full_name: 'A', status: 'ACTIVE' })
+    if (path === '/billing/gst-states') return json(200, { states: STATES })
+    if (path === '/billing/me/billing-profile') return json(200, method === 'PUT' ? { ...body, state_name: 'x' } : (o.profile ?? { billing_email: null, state_code: null, state_name: null, gstin: null, legal_name: null }))
+    if (path === '/billing/subscription/change/preview' || path === '/billing/subscription/resume/preview') return json(200, o.quote ?? UPGRADE_QUOTE)
     if (path === '/auth/resend-verification') return json(200, { message: 'sent' })
     if (path === '/billing/checkout' || path === '/billing/subscription/change' || path === '/billing/subscription/resume') return o.checkout ? o.checkout() : json(201, simResponse)
     if (path === '/billing/checkout/verify') {
@@ -382,7 +393,7 @@ describe('change plan and resume', () => {
     const calls = mock({ me: mePro })
     renderDialog('change', maxPlan)
     const copy = await screen.findByTestId('change-copy')
-    expect(copy).toHaveTextContent("You'll pay ₹1,499 now for a new period; the unused days on your current plan go back to your original payment method.")
+    expect(copy).toHaveTextContent("You'll pay ₹1,499 now for a new period; ₹249.50 for unused days goes back to your original payment method.")
     await userEvent.click(screen.getByRole('button', { name: /pay ₹1,499/i }))
     await waitFor(() => expect(calls.some((c) => c.path === '/billing/subscription/change')).toBe(true))
     expect(calls.find((c) => c.path === '/billing/subscription/change')!.body).toEqual({ plan_code: 'max', interval: 'month' })
@@ -390,7 +401,7 @@ describe('change plan and resume', () => {
   })
 
   it('downgrade: starts on the period end and asks to authorise the new mandate', async () => {
-    mock({ me: meMax })
+    mock({ me: meMax, quote: { kind: 'downgrade', amount_due_now_paise: 0, refund_paise: 0, effective_at: '2027-11-15T10:00:00+05:30', new_period_end: '2028-11-15T10:00:00+05:30', price_paise: 499000 } })
     renderDialog('change', proPlan, 'year')
     expect(await screen.findByTestId('change-copy')).toHaveTextContent('Starts on 15 Nov 2027; authorise the new mandate now.')
     expect(screen.getByRole('button', { name: /schedule and authorise/i })).toBeInTheDocument()
@@ -406,9 +417,10 @@ describe('change plan and resume', () => {
     expect(await screen.findByTestId('checkout-success')).toBeInTheDocument()
   })
 
-  it('changeCopy wording', () => {
-    expect(changeCopy('upgrade', 149900, null)).toContain('₹1,499 now')
-    expect(changeCopy('downgrade', 49900, '2026-12-15T10:00:00+05:30')).toBe('Starts on 15 Dec 2026; authorise the new mandate now.')
+  it('quoteCopy wording is built from the quote only', () => {
+    expect(quoteCopy(UPGRADE_QUOTE)).toBe("You'll pay ₹1,499 now for a new period; ₹249.50 for unused days goes back to your original payment method.")
+    expect(quoteCopy({ ...UPGRADE_QUOTE, refund_paise: 0 })).toBe("You'll pay ₹1,499 now for a new period.")
+    expect(quoteCopy({ ...UPGRADE_QUOTE, kind: 'downgrade', amount_due_now_paise: 0, refund_paise: 0, effective_at: '2026-12-15T10:00:00+05:30' })).toBe('Starts on 15 Dec 2026; authorise the new mandate now.')
   })
 })
 

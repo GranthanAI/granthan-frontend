@@ -1,16 +1,17 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Download } from 'lucide-react'
-import { Alert, Button, Skeleton } from '@/components/ui/primitives'
+import { Alert, Button, Skeleton, TextField } from '@/components/ui/primitives'
 import { ConfirmDialog, toast } from '@/components/ui/overlays'
 import { SettingsSection } from '@/components/settings/controls'
 import { CheckoutDialog } from '@/features/billing/CheckoutDialog'
-import { invalidateBilling, useBillingMe, useInvoices, usePlans } from '@/features/billing/hooks'
+import { invalidateBilling, useBillingMe, useBillingProfile, useGstStates, useInvoices, usePlans } from '@/features/billing/hooks'
 import { saveBlob, safeFileName } from '@/lib/download'
-import { errorMessage } from '@/lib/errors'
+import { toApiError, errorMessage } from '@/lib/errors'
+import { fieldErrors, gstinError } from '@/lib/gstin'
+import { qk } from '@/lib/query-keys'
 import { formatIstDate, formatLimit, formatPaise } from '@/lib/format'
-import { authService } from '@/services/auth.service'
 import { billingService } from '@/services/billing.service'
 import { isCreditNote, type BillingMe, type Invoice } from '@/types/billing'
 
@@ -32,7 +33,6 @@ export function BillingSettings() {
   const [resuming, setResuming] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const qc = useQueryClient()
-  const user = useQuery({ queryKey: ['auth', 'me'], queryFn: () => authService.me(), staleTime: 60_000 })
 
   const cancel = useMutation({
     mutationFn: () => billingService.cancel(),
@@ -108,14 +108,7 @@ export function BillingSettings() {
         {ending && paid && <p className="text-sm text-ink-2">Your plan ends on {until}. Resume to keep it.</p>}
       </SettingsSection>
 
-      <SettingsSection title="Billing details" description="Used on your invoices.">
-        <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-          <dt className="text-ink-3">Billing email</dt>
-          <dd>{user.data?.email ?? (user.isPending ? '…' : '—')}</dd>
-          <dt className="text-ink-3">State and GSTIN</dt>
-          <dd className="text-ink-2">Entered when you subscribe; each invoice shows the ones it was issued with.</dd>
-        </dl>
-      </SettingsSection>
+      <BillingDetails />
 
       <SettingsSection title="Limits" description="What your plan includes.">
         <ul className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm" aria-label="Plan limits">
@@ -215,5 +208,62 @@ function Table({ rows, empty, onDownload, busy, credit }: { rows: Invoice[]; emp
         </li>
       ))}
     </ul>
+  )
+}
+
+/** Billing email, GST state and optional GSTIN: saved to billing, applied to FUTURE invoices only. */
+function BillingDetails() {
+  const profile = useBillingProfile()
+  const states = useGstStates()
+  const qc = useQueryClient()
+  const [email, setEmail] = useState('')
+  const [stateCode, setStateCode] = useState('')
+  const [gstin, setGstin] = useState('')
+  const [legalName, setLegalName] = useState('')
+  const [server, setServer] = useState<Record<string, string>>({})
+  const [loaded, setLoaded] = useState<unknown>(null)
+  if (profile.data && loaded !== profile.data) {
+    setLoaded(profile.data)
+    setEmail(profile.data.billing_email ?? '')
+    setStateCode(profile.data.state_code ?? '')
+    setGstin(profile.data.gstin ?? '')
+    setLegalName(profile.data.legal_name ?? '')
+  }
+  const save = useMutation({
+    mutationFn: () => billingService.saveProfile({ billing_email: email.trim(), state_code: stateCode, gstin: gstin.trim().toUpperCase() || null, legal_name: legalName.trim() || null }),
+    onSuccess: (p) => {
+      qc.setQueryData(qk.billingProfile, p)
+      setServer({})
+      toast('Billing details saved. They apply to future invoices.', 'success')
+    },
+    onError: (e) => setServer(fieldErrors(toApiError(e).problemErrors)),
+  })
+  const gErr = gstin ? gstinError(gstin, stateCode) : null
+  const nameErr = gstin && !legalName.trim() ? 'Required when a GSTIN is given.' : null
+  const emailErr = email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()) ? 'Enter a valid email address.' : null
+  const valid = !!email.trim() && !emailErr && !!stateCode && !gErr && !nameErr
+
+  return (
+    <SettingsSection title="Billing details" description="Used on your invoices. A change applies to future invoices only; invoices already issued keep the details they were issued with.">
+      {profile.isPending ? (
+        <Skeleton className="h-24 w-full" />
+      ) : (
+        <form noValidate className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (valid) save.mutate() }}>
+          {save.isError && !Object.keys(server).length && <Alert tone="error">{errorMessage(save.error)}</Alert>}
+          <TextField label="Billing email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} error={emailErr ?? server.billing_email} autoComplete="email" />
+          <label className="block text-sm">
+            <span className="mb-1.5 block font-medium">State (place of supply)</span>
+            <select value={stateCode} onChange={(e) => setStateCode(e.target.value)} className="h-10 w-full rounded-lg border border-line bg-raised px-3 text-sm">
+              <option value="">Select your state…</option>
+              {(states.data?.states ?? []).map((s) => <option key={s.code} value={s.code}>{s.name} ({s.code})</option>)}
+            </select>
+            {server.state_code && <span role="alert" className="mt-1 block text-xs text-danger">{server.state_code}</span>}
+          </label>
+          <TextField label="GSTIN (optional)" value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} maxLength={15} error={(gErr ?? server.gstin) || undefined} />
+          <TextField label="Legal name" value={legalName} onChange={(e) => setLegalName(e.target.value)} maxLength={200} error={nameErr ?? server.legal_name} hint="The name on a GST invoice." />
+          <Button type="submit" variant="primary" loading={save.isPending} disabled={!valid}>Save billing details</Button>
+        </form>
+      )}
+    </SettingsSection>
   )
 }

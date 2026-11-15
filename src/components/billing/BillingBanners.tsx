@@ -1,6 +1,6 @@
 import { Link, useInRouterContext } from 'react-router-dom'
 import { useBillingMe } from '@/features/billing/hooks'
-import { SUPPORT_EMAIL } from '@/lib/config'
+import { supportEmail } from '@/lib/config'
 import { formatIstDate } from '@/lib/format'
 import type { BillingMe } from '@/types/billing'
 
@@ -37,7 +37,7 @@ export function bannersFor(me: BillingMe): Banner[] {
       id: 'suspended',
       tone: 'danger',
       text: `Your ${planLabel(me)} plan is suspended because the payment could not be collected.`,
-      action: <A href={`mailto:${SUPPORT_EMAIL}`}>Contact support</A>,
+      action: supportEmail() ? <A href={`mailto:${supportEmail()}`}>Contact support</A> : undefined,
     })
   if (me.status === 'cancelling' || me.cancel_at_period_end)
     out.push({

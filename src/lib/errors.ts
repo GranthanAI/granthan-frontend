@@ -20,6 +20,8 @@ export class ApiError extends Error {
   readonly fields: Record<string, string>
   /** The structured `detail` of a 4xx response (e.g. a version conflict's current document). Never set for 5xx bodies. */
   readonly detail?: unknown
+  /** RFC 9457 `errors` (billing 422s): one "field: message" string per problem. */
+  problemErrors?: string[]
 
   constructor(
     kind: ApiErrorKind,
@@ -131,7 +133,10 @@ export function parseErrorBody(status: number, body: unknown): ApiError {
   }
   if (!message) message = defaultMessage(kind)
   const detail = body && typeof body === 'object' ? (body as Record<string, unknown>).detail : undefined
-  return new ApiError(kind, message, status, fields, detail && typeof detail === 'object' ? detail : undefined)
+  const out = new ApiError(kind, message, status, fields, detail && typeof detail === 'object' ? detail : undefined)
+  const problems = body && typeof body === 'object' ? (body as Record<string, unknown>).errors : undefined
+  if (Array.isArray(problems)) out.problemErrors = problems.filter((x): x is string => typeof x === 'string')
+  return out
 }
 
 export function toApiError(e: unknown): ApiError {

@@ -46,6 +46,9 @@ function mock(o: Opts = {}) {
     if (call.path === '/billing/plans') return json(200, plansResponse)
     if (call.path === '/billing/invoices') return json(200, o.invoices ?? invoicesResponse)
     if (call.path === '/billing/me/models') return json(200, modelsPro)
+    if (call.path === '/billing/subscription/resume/preview') return json(200, { kind: 'resume', amount_due_now_paise: 0, refund_paise: 0, effective_at: '2026-12-15T10:00:00+05:30', new_period_end: '2027-01-15T10:00:00+05:30', price_paise: 49900 })
+    if (call.path === '/billing/gst-states') return json(200, { states: [{ code: '10', name: 'Bihar' }, { code: '27', name: 'Maharashtra' }] })
+    if (call.path === '/billing/me/billing-profile') return json(200, { billing_email: 'asha@example.com', state_code: '10', state_name: 'Bihar', gstin: null, legal_name: null })
     if (call.path === '/auth/me') return json(200, { id: 'u1', email: 'asha@example.com', is_email_verified: true, full_name: 'Asha', status: 'ACTIVE' })
     if (call.path === '/tools') return json(200, { tools: [], max_selected: 5 })
     if (call.path === '/custom-modes') return json(200, { items: [], total: 0, limit: 100, offset: 0, max_per_user: 3, limits: { name: 60, description: 200, instructions: 4000 } })
@@ -86,7 +89,7 @@ describe('Settings → Billing', () => {
     expect(s).toHaveTextContent('Renews on')
     expect(s).toHaveTextContent('15 Dec 2026')
     expect(screen.getByRole('link', { name: 'Change plan' })).toHaveAttribute('href', '/pricing')
-    expect(await screen.findByText('asha@example.com')).toBeInTheDocument()
+    expect(await screen.findByDisplayValue('asha@example.com')).toBeInTheDocument()
   })
 
   it('Max shows Unlimited where the plan has no cap', async () => {
