@@ -45,14 +45,19 @@ export function adoptNewChatModel(newKey: string, conversationId: string) {
 export function defaultModelId(models: MyModelsResponse | undefined): string | undefined {
   if (!models) return undefined
   const allowed = (group?: string) =>
-    models.groups.filter((g) => !group || g.group === group).flatMap((g) => g.models.filter((m) => m.allowed))
+    models.groups.filter((g) => !group || g.group === group).flatMap((g) => g.models.filter((m) => m.allowed && m.available !== false))
   const oss = (list: ReturnType<typeof allowed>) => list.find((m) => m.id.includes('gpt-oss'))
   return (oss(allowed(models.default_group)) ?? oss(allowed('fast')) ?? oss(allowed()) ?? allowed(models.default_group)[0] ?? allowed()[0])?.id
 }
 
 export function isModelAllowed(models: MyModelsResponse | undefined, id: string): boolean {
   if (!models) return true // not loaded yet: let the server decide
-  return models.groups.some((g) => g.models.some((m) => m.id === id && m.allowed))
+  return models.groups.some((g) => g.models.some((m) => m.id === id && m.allowed && m.available !== false))
+}
+
+/** The plan includes it, but llm-service cannot answer with it right now. */
+export function isModelUnavailable(models: MyModelsResponse | undefined, id: string): boolean {
+  return !!models && models.groups.some((g) => g.models.some((m) => m.id === id && m.allowed && m.available === false))
 }
 
 /**

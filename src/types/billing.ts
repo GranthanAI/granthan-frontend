@@ -50,6 +50,8 @@ export interface PlansResponse {
 
 export interface CatalogModel {
   id: string
+  /** false when llm-service cannot answer with it right now; absent = true */
+  available?: boolean
   label: string
   provider: string
   group: ModelGroup | string
@@ -92,6 +94,8 @@ export interface BillingMe {
 
 export interface MyModel {
   id: string
+  /** false when llm-service cannot answer with it right now; absent = true */
+  available?: boolean
   label: string
   provider: string
   allowed: boolean

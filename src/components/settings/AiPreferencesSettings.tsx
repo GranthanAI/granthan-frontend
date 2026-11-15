@@ -148,10 +148,10 @@ export function AiPreferencesSettings() {
             onChange={(v) => set('default_model', v)}
             options={[
               ...myModels.data.groups.flatMap((g) =>
-                g.models.filter((m) => m.allowed).map((m) => ({ value: m.id, label: `${m.label} (${groupLabel(g.group)})` })),
+                g.models.filter((m) => m.allowed && m.available !== false).map((m) => ({ value: m.id, label: `${m.label} (${groupLabel(g.group)})` })),
               ),
               ...(draft.default_model !== 'auto' && !!draft.default_model &&
-              !myModels.data.groups.some((g) => g.models.some((m) => m.allowed && m.id === draft.default_model))
+              !myModels.data.groups.some((g) => g.models.some((m) => m.allowed && m.available !== false && m.id === draft.default_model))
                 ? [{ value: draft.default_model!, label: `${draft.default_model} (not included)` }]
                 : []),
             ]}

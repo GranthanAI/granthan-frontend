@@ -314,3 +314,72 @@ describe('answered-by label and downgrade notice', () => {
     expect(await screen.findByText("Today's 15 Advanced answers are used, so this one comes from Llama Smart (Smart). Advanced refreshes at 12:00 am.")).toBeInTheDocument()
   })
 })
+
+describe('availability: models llm-service cannot answer with are hidden', () => {
+  const unavailable = (ids: string[], base = modelsPro) => ({
+    ...base,
+    groups: base.groups.map((g) => ({ ...g, models: g.models.map((m) => (ids.includes(m.id) ? { ...m, available: false } : m)) })),
+  })
+
+  it('the picker hides unavailable models, in the included groups and in "On Pro"', async () => {
+    mockApi({ models: unavailable(['llama-smart', 'best-1'], modelsFree) })
+    renderComposer()
+    await open()
+    const dialog = await screen.findByRole('dialog', { name: 'Models' })
+    expect(within(dialog).queryByText('Llama Smart')).toBeNull()
+    expect(within(dialog).queryByText('Best One')).toBeNull()
+    expect(within(dialog).queryByRole('group', { name: 'On Pro' })).toBeNull() // nothing left in it
+    expect(within(dialog).getByRole('radio', { name: /llama fast/i })).toBeEnabled()
+    mockApi({ models: unavailable(['llama-smart']) })
+  })
+
+  it('an included model that is unavailable is hidden from a Pro user too', async () => {
+    mockApi({ models: unavailable(['llama-smart']) })
+    renderComposer()
+    await open()
+    expect(screen.queryByRole('radio', { name: /llama smart/i })).toBeNull()
+    expect(screen.getByRole('radio', { name: /llama fast/i })).toBeInTheDocument()
+  })
+
+  it('available absent (old API) means available', async () => {
+    mockApi({ models: modelsPro })
+    renderComposer()
+    await open()
+    expect(await screen.findByRole('radio', { name: /llama smart/i })).toBeEnabled()
+  })
+
+  it('when the chosen model becomes unavailable the default is used and a quiet note says so', async () => {
+    useModelSelectionStore.getState().setModel('c1', 'llama-smart')
+    mockApi({ models: unavailable(['llama-smart']) })
+    renderComposer()
+    expect(await screen.findByRole('button', { name: 'Model, Llama Fast' })).toBeInTheDocument()
+    await open()
+    expect(await screen.findByTestId('model-switched-note')).toHaveTextContent("Llama Smart isn't available right now, so we've switched to Llama Fast.")
+  })
+
+  it('the saved default is swapped the same way, and a send never names the unavailable model', async () => {
+    const { sent } = mockApi({ models: unavailable(['llama-smart']), defaultModel: 'llama-smart' })
+    renderComposer('new')
+    expect(await screen.findByRole('button', { name: 'Model, Llama Fast' })).toBeInTheDocument()
+    const qc = newClient()
+    qc.setQueryData(['billing', 'me', 'models'], unavailable(['llama-smart']))
+    useModelSelectionStore.getState().setModel('c1', 'llama-smart')
+    sendMessage(qc, 'c1', 'hi')
+    await waitFor(() => expect(sent.some((r) => r.method === 'POST' && r.path.endsWith('/messages'))).toBe(true))
+    expect(sent.find((r) => r.method === 'POST' && r.path.endsWith('/messages'))?.body).toMatchObject({ model: 'llama-fast' })
+  })
+
+  it('model.unavailable (409) shows our words with the model name, no See plans', async () => {
+    const { BillingNotice } = await import('@/components/billing/BillingNotice')
+    mockApi({ models: modelsPro })
+    render(
+      <QueryClientProvider client={newClient()}>
+        <MemoryRouter>
+          <BillingNotice denial={{ reason: 'model_not_in_plan', message_key: 'model.unavailable', message: 'x', model: 'llama-smart', upgrade_to: null }} />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    expect(await screen.findByText("Llama Smart isn't available right now. Please pick another model.")).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'See plans' })).toBeNull()
+  })
+})

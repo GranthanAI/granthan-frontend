@@ -131,9 +131,16 @@ export const LIMIT_COPY: Record<string, LimitCopy> = {
   'credits.spend_cap': { message: 'Your monthly spend cap is reached, so credits are paused. Raise the cap, or they continue next month.' },
   'credits.member_cap': { message: "Your share of your organisation's monthly credits is used. Ask your organisation admin to add more." },
   'plan.model_not_included': { message: '{model} is included with {plans}.', upgrade: true },
+  'model.unavailable': { message: "{model} isn't available right now. Please pick another model.", upgrade: false },
+  'account.blocked': { message: "Your account can't send messages right now. Please contact support.", upgrade: false },
+  'billing.degraded': { message: 'Fast models are available for a few minutes while we reconnect. Please try again shortly.', upgrade: false },
+  'limit.unknown': { message: "We can't send this message right now. Please try again in a moment.", upgrade: false },
 }
 
 export const limitCopy = (messageKey: string | undefined | null): LimitCopy | null => (messageKey ? (LIMIT_COPY[messageKey] ?? null) : null)
+
+/** The quiet note when the model you were on cannot answer right now and we moved you to the plan's default. */
+export const MODEL_SWITCHED_NOTE = (model: string, fallback: string) => `${model} isn't available right now, so we've switched to ${fallback}.`
 
 /** When billing sent no message_key we know the reason: the same words. */
 export const REASON_KEYS: Record<string, string> = {
@@ -144,6 +151,8 @@ export const REASON_KEYS: Record<string, string> = {
   spend_cap: 'credits.spend_cap',
   member_spend_cap: 'credits.member_cap',
   rate_limit: 'limit.per_minute',
+  account_blocked: 'account.blocked',
+  billing_unavailable: 'billing.degraded',
 }
 /** Reasons with fixed words and no template. */
 export const REASON_FALLBACK: Record<string, string> = {

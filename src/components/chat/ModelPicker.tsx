@@ -115,6 +115,16 @@ export function ModelPicker({ selectionKey, disabled }: { selectionKey: string; 
     }
   }, [open, info])
 
+  // tell the user once, quietly, when the model they were on had to be swapped
+  const note = sel.switchedNote
+  const told = useRef<string | null>(null)
+  useEffect(() => {
+    if (note && told.current !== note) {
+      told.current = note
+      toast(note, 'info')
+    }
+  }, [note])
+
   if (!sel.available || !sel.data) return null
   const data = sel.data
 
@@ -131,8 +141,10 @@ export function ModelPicker({ selectionKey, disabled }: { selectionKey: string; 
   )
 
   // included models, by group; everything else goes to the "On Pro" / "On Max" / "With credits" sections
-  const includedGroups = data.groups.map((g) => ({ g, models: g.models.filter((m) => m.allowed) })).filter((x) => x.models.length)
-  const others: Other[] = data.groups.flatMap((g) => g.models.filter((m) => !m.allowed).map((model) => ({ model, group: g })))
+  // a model llm-service cannot answer with right now is hidden everywhere (also from "On Pro")
+  const here = data.groups.map((g) => ({ ...g, models: g.models.filter((m) => m.available !== false) }))
+  const includedGroups = here.map((g) => ({ g, models: g.models.filter((m) => m.allowed) })).filter((x) => x.models.length)
+  const others: Other[] = here.flatMap((g) => g.models.filter((m) => !m.allowed).map((model) => ({ model, group: g })))
   const sections = new Map<string, { title: string; rank: number; items: Array<Other & { badge: string }> }>()
   for (const o of others) {
     const s = sectionOf(o, plans)
@@ -162,6 +174,7 @@ export function ModelPicker({ selectionKey, disabled }: { selectionKey: string; 
 
       {open && (
         <div id={panelId} role="dialog" aria-label="Models" className="animate-in absolute bottom-full left-0 z-30 mb-2 w-[min(22rem,88vw)] rounded-xl border border-line bg-raised p-1.5 shadow-pop">
+          {sel.switchedNote && <p role="status" data-testid="model-switched-note" className="px-2.5 pb-1.5 pt-1 text-xs text-ink-2">{sel.switchedNote}</p>}
           <div role="radiogroup" aria-label="Model" className="max-h-80 overflow-y-auto">
             {includedGroups.map(({ g, models }) => {
               const line = advancedLine(g, data)
