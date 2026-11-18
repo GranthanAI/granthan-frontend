@@ -383,3 +383,28 @@ describe('availability: models llm-service cannot answer with are hidden', () =>
     expect(screen.queryByRole('link', { name: 'See plans' })).toBeNull()
   })
 })
+
+describe('the plan default model (/billing/me/models default_model)', () => {
+  it('is the starting model when the plan names one the user can use', async () => {
+    const { defaultModelId } = await import('@/features/billing/model-selection')
+    expect(defaultModelId({ ...modelsPro, default_model: 'llama-fast' })).toBe('llama-fast')
+    mockApi({ models: { ...modelsPro, default_model: 'llama-fast' } })
+    renderComposer('new')
+    expect(await screen.findByRole('button', { name: 'Model, Llama Fast' })).toBeInTheDocument()
+  })
+
+  it('falls back to the old logic when it is missing, not included, or not answering right now', async () => {
+    const { defaultModelId } = await import('@/features/billing/model-selection')
+    const old = defaultModelId(modelsPro)
+    expect(defaultModelId({ ...modelsPro, default_model: null })).toBe(old)
+    expect(defaultModelId({ ...modelsFree, default_model: 'best-1' })).toBe(defaultModelId(modelsFree)) // not in the plan
+    const down = { ...modelsPro, default_model: 'llama-fast', groups: modelsPro.groups.map((g) => ({ ...g, models: g.models.map((m) => (m.id === 'llama-fast' ? { ...m, available: false } : m)) })) }
+    expect(defaultModelId(down)).toBe('llama-smart')
+  })
+
+  it('a saved choice still wins over the plan default', async () => {
+    mockApi({ models: { ...modelsPro, default_model: 'llama-fast' }, defaultModel: 'llama-smart' })
+    renderComposer('new')
+    expect(await screen.findByRole('button', { name: 'Model, Llama Smart' })).toBeInTheDocument()
+  })
+})

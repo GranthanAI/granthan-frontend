@@ -112,6 +112,8 @@ export interface MyModelGroup {
 export interface MyModelsResponse {
   plan: { code: PlanCode; source: string }
   default_group: string
+  /** the plan's starting model (a catalog id the plan includes and that can answer now); null = no preference */
+  default_model?: string | null
   messages: { daily_limit: number; used_today: number; remaining_today: number; resets_at: string }
   groups: MyModelGroup[]
 }

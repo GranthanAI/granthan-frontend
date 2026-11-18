@@ -39,14 +39,17 @@ export function adoptNewChatModel(newKey: string, conversationId: string) {
 }
 
 /**
- * The model used until the user picks another: a GPT-OSS model the plan allows (in the plan's default group first, then
- * Fast), else the first allowed model. There is no "Auto": the user always sees, and can change, the model in use.
+ * The model used until the user picks another: the plan's own `default_model` from /billing/me/models when it is allowed and
+ * answering; otherwise (an older API, or it is not usable) a GPT-OSS model the plan allows (default group first, then Fast), else
+ * the first allowed model. There is no "Auto": the user always sees, and can change, the model in use.
  */
 export function defaultModelId(models: MyModelsResponse | undefined): string | undefined {
   if (!models) return undefined
   const allowed = (group?: string) =>
     models.groups.filter((g) => !group || g.group === group).flatMap((g) => g.models.filter((m) => m.allowed && m.available !== false))
   const oss = (list: ReturnType<typeof allowed>) => list.find((m) => m.id.includes('gpt-oss'))
+  const planDefault = models.default_model ? allowed().find((m) => m.id === models.default_model) : undefined
+  if (planDefault) return planDefault.id
   return (oss(allowed(models.default_group)) ?? oss(allowed('fast')) ?? oss(allowed()) ?? allowed(models.default_group)[0] ?? allowed()[0])?.id
 }
 
