@@ -13,13 +13,25 @@ function Canvas({ svg, zoom, onZoom, onClickPlain }: { svg: SVGElement; zoom: nu
   const inner = useRef<HTMLDivElement>(null)
   const drag = useRef<{ x: number; y: number; left: number; top: number; moved: boolean } | null>(null)
 
+  // At 100% and below the diagram FITS the box (both width and height, aspect kept); above 100% it grows and scrolls.
+  const fit = zoom <= 1
   useEffect(() => {
     const copy = svg.cloneNode(true) as SVGElement
-    copy.removeAttribute('height')
-    copy.setAttribute('width', '100%')
-    copy.style.maxWidth = 'none'
+    const vb = (svg.getAttribute('viewBox') ?? '').split(/[\s,]+/).map(Number)
+    if (fit && vb.length === 4 && vb[2]! > 0 && vb[3]! > 0) {
+      copy.setAttribute('width', String(vb[2]))
+      copy.setAttribute('height', String(vb[3]))
+      copy.style.maxWidth = '100%'
+      copy.style.maxHeight = '100%'
+      copy.style.width = 'auto'
+      copy.style.height = 'auto'
+    } else {
+      copy.removeAttribute('height')
+      copy.setAttribute('width', '100%')
+      copy.style.maxWidth = 'none'
+    }
     inner.current?.replaceChildren(copy)
-  }, [svg])
+  }, [svg, fit])
 
   // Ctrl/Cmd + wheel (and trackpad pinch) zooms; a plain wheel scrolls as usual.
   useEffect(() => {
@@ -62,7 +74,11 @@ function Canvas({ svg, zoom, onZoom, onClickPlain }: { svg: SVGElement; zoom: nu
         drag.current = null
       }}
     >
-      <div ref={inner} style={{ width: `${zoom * 100}%`, minWidth: '100%' }} />
+      <div
+        ref={inner}
+        className={fit ? 'mx-auto flex items-center justify-center' : undefined}
+        style={fit ? { width: `${zoom * 100}%`, height: `${zoom * 100}%` } : { width: `${zoom * 100}%`, minWidth: '100%' }}
+      />
     </div>
   )
 }
