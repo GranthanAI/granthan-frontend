@@ -408,3 +408,28 @@ describe('the plan default model (/billing/me/models default_model)', () => {
     expect(await screen.findByRole('button', { name: 'Model, Llama Smart' })).toBeInTheDocument()
   })
 })
+
+describe('S4: the request names the model shown', () => {
+  it('modelForRequest sends the picked model for a new chat, a switch, a send and a reload (saved choice)', async () => {
+    const { modelForRequest, useModelSelectionStore, adoptNewChatModel } = await import('@/features/billing/model-selection')
+    const { qk } = await import('@/lib/query-keys')
+    const qc = newClient()
+    qc.setQueryData(qk.billingModels, modelsMax)
+    const store = useModelSelectionStore.getState()
+    store.setModel('new', 'llama-smart')                                   // new chat composer
+    expect(modelForRequest(qc, 'new')).toBe('llama-smart')
+    adoptNewChatModel('new', 'c9')                                         // the conversation it creates
+    expect(modelForRequest(qc, 'c9')).toBe('llama-smart')
+    useModelSelectionStore.getState().setModel('c9', 'llama-fast')         // switch
+    expect(modelForRequest(qc, 'c9')).toBe('llama-fast')
+    expect(JSON.parse(localStorage.getItem('granthan-conversation-model') ?? '{}').state.modelByKey.c9).toBe('llama-fast') // survives reload
+    expect(modelForRequest(qc, 'untouched')).toBeTruthy()                  // nothing picked: the default is sent explicitly, never nothing
+  })
+
+  it('shows a quiet busy line only when another model answered', async () => {
+    const { busyLine } = await import('@/features/billing/model-selection')
+    expect(busyLine('GPT-OSS 120B', 'GPT-OSS 20B', false)).toBe('GPT-OSS 120B was busy, so GPT-OSS 20B answered.')
+    expect(busyLine('GPT-OSS 120B', 'GPT-OSS 120B', true)).toBeNull()
+    expect(busyLine(undefined, 'GPT-OSS 20B', true)).toBeNull()
+  })
+})

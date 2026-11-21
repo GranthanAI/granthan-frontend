@@ -4,7 +4,7 @@ import { qk } from '@/lib/query-keys'
 import { openConversationStream, type OpenedStream } from '@/lib/streaming'
 import { uuid } from '@/lib/utils'
 import { invalidateBilling } from '@/features/billing/hooks'
-import { modelForRequest } from '@/features/billing/model-selection'
+import { modelForRequest, useLastRequestedModel } from '@/features/billing/model-selection'
 import { reportBillingError, useBillingNoticeStore } from '@/stores/billing-notice.store'
 import { useDraftStore } from '@/stores/draft.store'
 import { messageService } from '@/services/message.service'
@@ -324,6 +324,7 @@ export function sendMessage(
 ): boolean {
   const { retryOf, mode = null } = opts
   const model = opts.model ?? modelForRequest(qc, cid)
+  useLastRequestedModel.getState().set(cid, model)
   if (active.has(cid) || isBusy(useChatStore.getState().runs[cid])) return false
   const idempotencyKey = retryOf?.idempotencyKey ?? uuid()
   useChatStore.getState().patch(cid, (r) => ({
@@ -392,6 +393,7 @@ export function dismissPending(cid: string) {
 export function regenerate(qc: QueryClient, cid: string, assistantMessageId: string): boolean {
   if (active.has(cid) || isBusy(useChatStore.getState().runs[cid])) return false
   const model = modelForRequest(qc, cid)
+  useLastRequestedModel.getState().set(cid, model)
   void runTurn({
     qc,
     cid,

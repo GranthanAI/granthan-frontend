@@ -3,6 +3,7 @@ import { AlertCircle, Check, ChevronDown, Copy, FileText, Paperclip, RefreshCw, 
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/primitives'
 import { bestSwitchedText } from '@/features/billing/noticeCopy'
+import { busyLine, useLastRequestedModel } from '@/features/billing/model-selection'
 import { useBillingMe, useModelCatalog, useMyModels } from '@/features/billing/hooks'
 import { youtubeService } from '@/services/youtube.service'
 import { timecode, videoLink, youtubeDocTitle } from '@/features/uploads/youtube'
@@ -182,7 +183,7 @@ function AssistantMessage({
 
       {!streaming && !waiting && !failed && m.content && <ResponseEditCard content={m.content} />}
 
-      {!streaming && !waiting && !failed && m.model && <AnsweredBy model={m.model} noticeKey={m.noticeKey} />}
+      {!streaming && !waiting && !failed && m.model && <AnsweredBy model={m.model} noticeKey={m.noticeKey} conversationId={showRegenerate ? conversationId : undefined} />}
 
       {m.citations.length > 0 && !streaming && <Sources citations={m.citations} />}
 
@@ -216,15 +217,19 @@ function AssistantMessage({
 }
 
 /** "Answered by <model>" plus the downgrade notice when an Advanced request was served by a Smart model. */
-function AnsweredBy({ model, noticeKey }: { model: string; noticeKey?: string | null }) {
+function AnsweredBy({ model, noticeKey, conversationId }: { model: string; noticeKey?: string | null; conversationId?: string }) {
+  const requested = useLastRequestedModel((s) => (conversationId ? s.byConversation[conversationId] : undefined))
   const models = useMyModels().data
   const me = useBillingMe().data
   const catalog = useModelCatalog().data?.models
   const label = models?.groups.flatMap((g) => g.models).find((x) => x.id === model)?.label ?? model
+  const labelOf = (id: string) => models?.groups.flatMap((g) => g.models).find((x) => x.id === id)?.label ?? id
+  const busy = busyLine(requested ? labelOf(requested) : undefined, label, !requested || requested === model)
   const switched = noticeKey === 'limit.best_switched' ? bestSwitchedText({ me, models, catalog, answeredBy: model }) : null
   return (
     <div className="mt-2 space-y-1 text-xs text-ink-3">
       <p>Answered by {label}</p>
+      {busy && <p role="note">{busy}</p>}
       {noticeKey === 'limit.best_switched' && <p role="note" className="text-ink-2">{switched ?? "Today's Advanced answers are used, so this one comes from a Smart model."}</p>}
     </div>
   )

@@ -74,3 +74,22 @@ export function modelForRequest(qc: QueryClient, key: string): string | undefine
   // Nothing (usable) chosen: the default model, sent explicitly so what the picker shows is what answers.
   return defaultModelId(models) ?? (chosen === AUTO_MODEL ? undefined : chosen)
 }
+
+/**
+ * The model each conversation's latest request named (not persisted). When another allowed model answered, the message shows
+ * a quiet "{picked} was busy, so {answered} answered." line; after a reload there is nothing to compare, so no line.
+ */
+export const useLastRequestedModel = create<{ byConversation: Record<string, string>; set: (cid: string, id: string | undefined) => void }>()((set) => ({
+  byConversation: {},
+  set: (cid, id) =>
+    set((s) => {
+      const { [cid]: _drop, ...rest } = s.byConversation
+      void _drop
+      return { byConversation: id && id !== AUTO_MODEL ? { ...rest, [cid]: id } : rest }
+    }),
+}))
+
+/** The quiet line, or null when the model that answered is the one asked for. */
+export function busyLine(requestedLabel: string | undefined, answeredLabel: string, same: boolean): string | null {
+  return requestedLabel && !same ? `${requestedLabel} was busy, so ${answeredLabel} answered.` : null
+}
