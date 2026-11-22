@@ -138,7 +138,7 @@ describe('Settings → Organisation', () => {
     })
     renderSettings()
     expect(await screen.findByTestId('org-seats')).toHaveTextContent('3 of 5 used · drops to 4 at the next renewal')
-    expect(screen.getAllByRole('tab')).toHaveLength(5)
+    expect(screen.getAllByRole('tab')).toHaveLength(7)
     expect(screen.queryByRole('button', { name: 'Leave organisation' })).toBeNull()
     expect(await screen.findAllByTestId('member-row')).toHaveLength(2)
   })

@@ -24,6 +24,8 @@ export class ApiError extends Error {
   problemErrors?: string[]
   /** The machine code of a problem+json body (organisation-service: SEATS_FULL, INVITE_EXPIRED, ...). */
   code?: string
+  /** Seconds from a Retry-After header (429 / 503), when the server sent one. */
+  retryAfterSeconds?: number
 
   constructor(
     kind: ApiErrorKind,

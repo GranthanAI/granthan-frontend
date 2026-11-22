@@ -19,4 +19,7 @@ export const orgAdminService = {
   reactivate: (orgId: string, reason: string) => api.post<StaffOrg>(one(orgId, '/reactivate'), { reason }, idem()),
   extendPilot: (orgId: string, days: number, reason: string) => api.post<StaffOrg>(one(orgId, '/extend-pilot'), { days, reason }, idem()),
   close: (orgId: string, reason: string) => api.post<StaffOrg>(one(orgId, '/close'), { reason }, idem()),
+  addMember: (orgId: string, body: { user_id: string; role: 'admin' | 'member'; reason: string }) => api.post<unknown>(one(orgId, '/members'), body, idem()),
+  manualVerifyDomain: (orgId: string, domain: string, reason: string) => api.post<unknown>(one(orgId, `/domains/${encodeURIComponent(domain)}/manual-verify`), { reason }, idem()),
+  resendInvite: (orgId: string, inviteId: string, reason: string) => api.post<unknown>(one(orgId, `/invites/${encodeURIComponent(inviteId)}/resend`), { reason }, idem()),
 }

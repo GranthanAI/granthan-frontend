@@ -19,7 +19,15 @@ export const ORG_ERROR_COPY: Record<string, string> = {
   SEATS_MANAGED_BY_BILLING: 'Seats for this organisation are set by billing, not by hand.',
   UNKNOWN_USER: 'No GranthanAI account was found for that person.',
   VERSION_CONFLICT: 'Someone else changed this. Reload and try again.',
+  CSV_INVALID: 'This file could not be read. Use a .csv with one email per row (a header row named email is fine) and save it as UTF-8.',
+  REQUEST_TOO_LARGE: 'This file is too large. The limit is 1 MB.',
+  PUBLIC_EMAIL_DOMAIN: 'That is a public email provider (like gmail.com), which no organisation can claim. Use your own domain.',
+  DOMAIN_TAKEN: 'Another organisation has already verified this domain. If it is yours, contact GranthanAI support.',
+  JOIN_REQUEST_PENDING: 'You already asked to join. Wait for an admin to answer.',
 }
+
+/** Accept refusals that no retry fixes: the stored token is dropped. */
+export const FINAL_ACCEPT_CODES = ['INVITE_INVALID', 'INVITE_EXPIRED', 'ALREADY_IN_ORG'] as const
 
 /** The invite codes that mean "this link is dead" (the join page shows no Join button for them). */
 export const DEAD_INVITE_CODES = ['INVITE_INVALID', 'INVITE_EXPIRED'] as const
@@ -28,7 +36,20 @@ export const orgErrorCode = (e: unknown): string | undefined => toApiError(e).co
 
 export function orgErrorMessage(e: unknown): string {
   const err = toApiError(e)
+  if (err.code === 'RATE_LIMITED' || err.kind === 'rate_limit')
+    return err.retryAfterSeconds ? `Too many attempts. Try again in ${err.retryAfterSeconds} seconds.` : ORG_ERROR_COPY.RATE_LIMITED!
   return (err.code && ORG_ERROR_COPY[err.code]) || err.message
+}
+
+/** Plain words for the reason on a CSV row. */
+export const CSV_REASON_COPY: Record<string, string> = {
+  invalid_email: 'Not a valid email address',
+  duplicate_in_file: 'Listed more than once in the file',
+  role_not_allowed: 'You cannot invite this role',
+  already_member: 'Already a member',
+  in_another_org: 'Already in another organisation',
+  open_invite_exists: 'Already has an open invitation',
+  over_seats: 'No free seat left for this row',
 }
 
 /** Per-result copy for the invite form (`results[].result`). */

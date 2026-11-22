@@ -106,3 +106,43 @@ export interface CreateOrgInput {
   pilot: boolean
   reason: string
 }
+
+// ---- CSV, domains, join requests
+export interface CsvError { row: number; email: string; reason: string }
+export interface CsvUpload {
+  batch_id: string
+  dry_run: boolean
+  rows_total: number
+  rows_ok: number
+  rows_failed: number
+  errors_preview: CsvError[]
+  seats: { used: number; bought: number | null; open_invites: number; payment_due: boolean }
+}
+export interface InviteBatch {
+  batch_id: string
+  status: string
+  dry_run: boolean
+  rows_total: number
+  rows_ok: number
+  rows_failed: number
+  sent: number
+  pending_send: number
+  not_sent: number
+  errors_note: string | null
+  created_at: string
+  finished_at: string | null
+}
+export interface DnsRecord { type: string; host: string; value: string }
+export interface OrgDomain {
+  domain: string
+  status: 'pending' | 'verified'
+  include_subdomains: boolean
+  auto_join: boolean
+  verified_at: string | null
+  verify_method: string | null
+  added_at: string | null
+  dns_record: DnsRecord | null
+}
+export interface DomainAdded { domain: string; status: string; include_subdomains: boolean; dns_record: DnsRecord; instructions: string }
+export interface DomainMatch { org_id: string; org_name: string; org_type: OrgType; can_request: boolean; pending_request_id: string | null }
+export interface JoinRequestRow { id: string; user_id: string; name: string | null; email: string | null; domain: string; status: string; created_at: string }

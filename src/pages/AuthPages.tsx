@@ -16,6 +16,7 @@ import {
   type SignupValues,
 } from '@/lib/validation'
 import { authService } from '@/services/auth.service'
+import { afterAuthPath } from '@/features/org/pendingInvite'
 import { useAuthStore } from '@/stores/auth.store'
 
 function AuthLayout({ title, subtitle, children, footer }: { title: string; subtitle?: string; children: ReactNode; footer?: ReactNode }) {
@@ -66,7 +67,7 @@ export function LoginPage() {
     try {
       qc.clear()
       await authService.login(v)
-      navigate(from && from.startsWith('/') ? from : '/', { replace: true })
+      navigate(afterAuthPath(from && from.startsWith('/') ? from : '/'), { replace: true })
     } catch (e) {
       const err = toApiError(e)
       setNeedsVerify(/not verified/i.test(err.message))
@@ -139,7 +140,7 @@ export function SignupPage() {
         // Email verification is switched off on the server: the account is usable straight away.
         try {
           await authService.login({ email: v.email, password: v.password })
-          navigate(from ?? '/', { replace: true })
+          navigate(afterAuthPath(from ?? '/'), { replace: true })
         } catch {
           navigate('/login', { replace: true, state: { notice: 'Account created. Please sign in.', from } })
         }

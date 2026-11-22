@@ -12,6 +12,7 @@ import {
 import { ConversationPage, NewChatPage } from '@/pages/ChatPages'
 import { authService } from '@/services/auth.service'
 import { useAuthStore } from '@/stores/auth.store'
+import { peekAfterAuthPath } from '@/features/org/pendingInvite'
 
 const settingsPage = <K extends string>(name: K) =>
   lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: (m as unknown as Record<K, React.ComponentType>)[name] })))
@@ -64,7 +65,7 @@ export function RequireAuth() {
 export function PublicOnly() {
   const status = useRestoreSession()
   if (status === 'loading') return <FullScreenLoader />
-  if (status === 'authenticated') return <Navigate to="/" replace />
+  if (status === 'authenticated') return <Navigate to={peekAfterAuthPath('/')} replace />
   return <Outlet />
 }
 

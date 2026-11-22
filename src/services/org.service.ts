@@ -1,7 +1,7 @@
-import { api } from '@/lib/api-client'
+import { api, requestFile } from '@/lib/api-client'
 import { uuid } from '@/lib/utils'
 import type {
-  AcceptResult, AuditRow, CreateInvitesResult, InvitePreview, InviteRow, LinkCreated, LinkRow, Me, Member, OrgRole, Page, Policy,
+  AcceptResult, AuditRow, CreateInvitesResult, CsvUpload, DomainAdded, DomainMatch, InviteBatch, JoinRequestRow, OrgDomain, InvitePreview, InviteRow, LinkCreated, LinkRow, Me, Member, OrgRole, Page, Policy,
   PolicyInput, UsageReport,
 } from '@/types/org'
 
@@ -41,4 +41,30 @@ export const orgService = {
 
   usage: (orgId: string, range: { from?: string; to?: string } = {}, signal?: AbortSignal) => api.get<UsageReport>(orgPath(orgId, '/usage'), { query: range, signal }),
   audit: (orgId: string, q: { cursor?: string; limit?: number } = {}, signal?: AbortSignal) => api.get<Page<AuditRow>>(orgPath(orgId, '/audit'), { query: q, signal }),
+
+  // ---- CSV bulk invites (multipart: the browser sets the boundary, so no Content-Type here)
+  uploadCsv: (orgId: string, file: File, role: Exclude<OrgRole, 'owner'>, dryRun: boolean, key?: string) => {
+    const form = new FormData()
+    form.set('file', file)
+    form.set('role', role)
+    form.set('dry_run', String(dryRun))
+    return api.post<CsvUpload>(orgPath(orgId, '/invites/csv'), form, idem(key))
+  },
+  batch: (batchId: string, signal?: AbortSignal) => api.get<InviteBatch>(`${O}/invite-batches/${encodeURIComponent(batchId)}`, { signal }),
+  batchErrors: (batchId: string) => requestFile(`${O}/invite-batches/${encodeURIComponent(batchId)}/errors.csv`),
+
+  linkUrl: (orgId: string, linkId: string) => api.get<{ link_id: string; url: string }>(orgPath(orgId, `/invite-links/${encodeURIComponent(linkId)}/url`)),
+
+  // ---- domains and join requests
+  domains: (orgId: string, signal?: AbortSignal) => api.get<{ items: OrgDomain[] }>(orgPath(orgId, '/domains'), { signal }),
+  addDomain: (orgId: string, domain: string, includeSubdomains: boolean) => api.post<DomainAdded>(orgPath(orgId, '/domains'), { domain, include_subdomains: includeSubdomains }, idem()),
+  patchDomain: (orgId: string, domain: string, body: { auto_join?: boolean; include_subdomains?: boolean }) => api.patch<OrgDomain>(orgPath(orgId, `/domains/${encodeURIComponent(domain)}`), body, idem()),
+  deleteDomain: (orgId: string, domain: string) => api.delete<void>(orgPath(orgId, `/domains/${encodeURIComponent(domain)}`), idem()),
+  verifyDomain: (orgId: string, domain: string) => api.post<OrgDomain>(orgPath(orgId, `/domains/${encodeURIComponent(domain)}/verify`), {}, idem()),
+  domainMatch: (signal?: AbortSignal) => api.get<DomainMatch>(`${O}/me/domain-match`, { signal }),
+  requestJoin: () => api.post<{ id: string; org_id: string; status: string }>(`${O}/join-requests`, {}, idem()),
+  cancelJoinRequest: (requestId: string) => api.delete<void>(`${O}/join-requests/${encodeURIComponent(requestId)}`, idem()),
+  joinRequests: (orgId: string, signal?: AbortSignal) => api.get<Page<JoinRequestRow>>(orgPath(orgId, '/join-requests'), { query: { status: 'pending', limit: 100 }, signal }),
+  approveJoinRequest: (orgId: string, id: string) => api.post<unknown>(orgPath(orgId, `/join-requests/${encodeURIComponent(id)}/approve`), {}, idem()),
+  declineJoinRequest: (orgId: string, id: string) => api.post<unknown>(orgPath(orgId, `/join-requests/${encodeURIComponent(id)}/decline`), {}, idem()),
 }

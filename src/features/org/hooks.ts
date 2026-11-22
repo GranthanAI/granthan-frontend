@@ -12,6 +12,9 @@ export const orgKeys = {
   policy: (id: string) => ['org', id, 'policy'] as const,
   usage: (id: string, from: string, to: string) => ['org', id, 'usage', from, to] as const,
   audit: (id: string) => ['org', id, 'audit'] as const,
+  domains: (id: string) => ['org', id, 'domains'] as const,
+  joinRequests: (id: string) => ['org', id, 'join-requests'] as const,
+  domainMatch: ['org', 'domain-match'] as const,
   staff: ['org-admin'] as const,
 }
 

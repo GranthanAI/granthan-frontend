@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Skeleton, TextField } from '@/components/ui/primitives'
 import { ConfirmDialog, toast } from '@/components/ui/overlays'
@@ -6,10 +6,15 @@ import { formatIstDate, formatPaise } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { orgService } from '@/services/org.service'
 import type { Me, OrgRole } from '@/types/org'
+import { CsvInvites } from './CsvInvites'
+import { DomainsTab } from './DomainsTab'
 import { INVITE_RESULT_COPY, orgErrorMessage } from './errors'
 import { isOrgAdmin, orgKeys, useOrgMe } from './hooks'
+import { InviteLinks } from './InviteLinks'
+import { JoinRequestsTab, NoOrganisation } from './JoinRequests'
+import { Card, Upsell } from './shared'
 
-const TABS = ['Members', 'Invites', 'Policies', 'Usage', 'Audit'] as const
+const TABS = ['Members', 'Invites', 'Join requests', 'Domains', 'Policies', 'Usage', 'Audit'] as const
 type Tab = (typeof TABS)[number]
 
 const ROLE_LABEL: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Member' }
@@ -19,13 +24,7 @@ export function OrganisationSettings() {
   const me = useOrgMe()
   if (me.isPending) return <Skeleton className="h-32 w-full" />
   if (me.isError) return <Alert tone="error">{orgErrorMessage(me.error)}</Alert>
-  if (!me.data)
-    return (
-      <section className="rounded-2xl border border-line bg-raised p-5" data-testid="org-none">
-        <h1 className="text-base font-semibold">Organisation</h1>
-        <p className="mt-1 text-sm text-ink-2">You are not in an organisation. If your college or company invited you, open the link in your invitation email.</p>
-      </section>
-    )
+  if (!me.data) return <NoOrganisation />
   return <OrgView me={me.data} />
 }
 
@@ -46,6 +45,8 @@ function OrgView({ me }: { me: Me }) {
           <div role="tabpanel">
             {tab === 'Members' && <MembersTab me={me} />}
             {tab === 'Invites' && <InvitesTab me={me} />}
+            {tab === 'Join requests' && <JoinRequestsTab me={me} />}
+            {tab === 'Domains' && <DomainsTab me={me} />}
             {tab === 'Policies' && <PoliciesTab me={me} />}
             {tab === 'Usage' && <UsageTab me={me} />}
             {tab === 'Audit' && <AuditTab me={me} />}
@@ -88,15 +89,12 @@ function Summary({ me }: { me: Me }) {
   )
 }
 
-const Card = ({ title, children }: { title: string; children: ReactNode }) => (
-  <section className="space-y-3 rounded-2xl border border-line bg-raised p-5"><h2 className="text-base font-semibold">{title}</h2>{children}</section>
-)
-
 function MembersTab({ me }: { me: Me }) {
   const id = me.org.id
   const qc = useQueryClient()
   const [error, setError] = useState('')
   const [removing, setRemoving] = useState<string | null>(null)
+  const [transferTo, setTransferTo] = useState<{ id: string; name: string } | null>(null)
   const list = useQuery({ queryKey: orgKeys.members(id), queryFn: ({ signal }) => orgService.members(id, { limit: 100 }, signal) })
   const done = () => qc.invalidateQueries({ queryKey: orgKeys.members(id) })
   const role = useMutation({
@@ -106,6 +104,11 @@ function MembersTab({ me }: { me: Me }) {
   const remove = useMutation({
     mutationFn: (userId: string) => orgService.removeMember(id, userId),
     onSuccess: async () => { setRemoving(null); await done() }, onError: (e) => setError(orgErrorMessage(e)),
+  })
+  const transfer = useMutation({
+    mutationFn: (userId: string) => orgService.transferOwnership(id, userId),
+    onSuccess: async () => { setTransferTo(null); await qc.invalidateQueries({ queryKey: orgKeys.all }); toast('Ownership transferred. You are now an admin.') },
+    onError: (e) => { setTransferTo(null); setError(orgErrorMessage(e)) },
   })
   return (
     <Card title="Members">
@@ -124,12 +127,15 @@ function MembersTab({ me }: { me: Me }) {
                   <select aria-label={`Role of ${m.name ?? m.email}`} value={m.role} onChange={(e) => role.mutate({ userId: m.user_id, role: e.target.value as 'admin' | 'member' })}
                     className="h-8 rounded-lg border border-line bg-raised px-2 text-sm"><option value="member">Member</option><option value="admin">Admin</option></select>
                 ) : <span className="text-ink-2">{ROLE_LABEL[m.role]}</span>}
+                {me.role === 'owner' && m.role === 'admin' && <Button size="sm" onClick={() => { setError(''); setTransferTo({ id: m.user_id, name: m.name ?? m.email ?? 'this admin' }) }}>Make owner</Button>}
                 {(me.role === 'owner' || m.role === 'member') && <Button size="sm" onClick={() => { setError(''); setRemoving(m.user_id) }}>Remove</Button>}
               </>
             )}
           </li>
         ))}
       </ul>
+      <ConfirmDialog open={!!transferTo} onClose={() => setTransferTo(null)} onConfirm={() => transferTo && transfer.mutate(transferTo.id)} loading={transfer.isPending}
+        title={`Make ${transferTo?.name ?? ''} the owner?`} description="They become the owner of this organisation and you become an admin. Only the new owner can undo this." confirmLabel="Transfer ownership" />
       <ConfirmDialog open={!!removing} onClose={() => setRemoving(null)} onConfirm={() => removing && remove.mutate(removing)} loading={remove.isPending}
         title="Remove this member?" description="They lose the organisation’s plan straight away." confirmLabel="Remove" />
     </Card>
@@ -143,9 +149,7 @@ function InvitesTab({ me }: { me: Me }) {
   const [role, setRole] = useState<'member' | 'admin'>('member')
   const [error, setError] = useState('')
   const [results, setResults] = useState<Array<{ email: string; result: string }>>([])
-  const [newLink, setNewLink] = useState('')
   const invites = useQuery({ queryKey: orgKeys.invites(id), queryFn: ({ signal }) => orgService.invites(id, { limit: 50 }, signal) })
-  const links = useQuery({ queryKey: orgKeys.links(id), queryFn: ({ signal }) => orgService.links(id, signal), enabled: me.features.invite_links })
   const refresh = () => qc.invalidateQueries({ queryKey: ['org', id] })
   const send = useMutation({
     mutationFn: () => orgService.invite(id, emails.split(/[\s,;]+/).filter(Boolean), role),
@@ -154,10 +158,6 @@ function InvitesTab({ me }: { me: Me }) {
   })
   const revoke = useMutation({ mutationFn: (inviteId: string) => orgService.revokeInvite(id, inviteId), onSuccess: refresh, onError: (e) => setError(orgErrorMessage(e)) })
   const resend = useMutation({ mutationFn: (inviteId: string) => orgService.resendInvite(id, inviteId), onSuccess: () => toast('Invitation sent again'), onError: (e) => setError(orgErrorMessage(e)) })
-  const makeLink = useMutation({
-    mutationFn: () => orgService.createLink(id, { max_uses: 100, expires_in_days: 14, domain_restricted: false }),
-    onSuccess: async (l) => { setNewLink(l.url); await refresh() }, onError: (e) => setError(orgErrorMessage(e)),
-  })
   return (
     <>
       <Card title="Invite people">
@@ -165,7 +165,7 @@ function InvitesTab({ me }: { me: Me }) {
         <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); if (emails.trim()) send.mutate() }}>
           <TextField label="Email addresses (separate with spaces or commas)" value={emails} onChange={(e) => setEmails(e.target.value)} />
           <label className="flex items-center gap-2 text-sm">Role
-            <select value={role} onChange={(e) => setRole(e.target.value as 'member' | 'admin')} className="h-8 rounded-lg border border-line bg-raised px-2 text-sm"><option value="member">Member</option><option value="admin">Admin</option></select>
+            <select value={role} onChange={(e) => setRole(e.target.value as 'member' | 'admin')} className="h-8 rounded-lg border border-line bg-raised px-2 text-sm"><option value="member">Member</option>{me.role === 'owner' && <option value="admin">Admin</option>}</select>
           </label>
           <Button type="submit" variant="primary" loading={send.isPending} disabled={!emails.trim()}>Send invitations</Button>
         </form>
@@ -185,14 +185,8 @@ function InvitesTab({ me }: { me: Me }) {
           ))}
         </ul>
       </Card>
-      {me.features.invite_links && (
-        <Card title="Invite link">
-          <p className="text-sm text-ink-2">Anyone with the link can join until it expires or is used up. Show it once; copy it now.</p>
-          {newLink && <p className="break-all rounded-lg bg-surface-2 p-2 text-sm" data-testid="new-link">{newLink}</p>}
-          <Button onClick={() => makeLink.mutate()} loading={makeLink.isPending}>Create link (100 uses, 14 days)</Button>
-          <ul className="text-sm text-ink-2">{links.data?.items.map((l) => <li key={l.link_id}>{l.status} · {l.uses}/{l.max_uses ?? '∞'} used · expires {formatIstDate(l.expires_at)}</li>)}</ul>
-        </Card>
-      )}
+      <CsvInvites me={me} />
+      <InviteLinks me={me} />
     </>
   )
 }
@@ -222,7 +216,10 @@ function PoliciesTab({ me }: { me: Me }) {
   return (
     <Card title="Policies">
       {error && <Alert tone="error">{error}</Alert>}
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={lockNow} disabled={!me.features.lock_modes} onChange={(e) => setLock(e.target.checked)} /> Members may use only approved modes</label>
+      {me.features.lock_modes
+        ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={lockNow} onChange={(e) => setLock(e.target.checked)} /> Members may use only approved modes</label>
+        : <Upsell what="Locking members to approved modes" />}
+      {!me.features.spend_cap && <Upsell what="A monthly spend cap per member" />}
       {me.features.spend_cap && (
         <TextField label="Most one member can spend a month from the organisation wallet (₹, blank for no cap)" inputMode="decimal" value={capNow} onChange={(e) => setCap(e.target.value)} error={bad ? 'Enter an amount of 0 or more.' : undefined} />
       )}
@@ -238,7 +235,7 @@ function UsageTab({ me }: { me: Me }) {
   const [from, setFrom] = useState(() => `${today().slice(0, 8)}01`)
   const [to, setTo] = useState(today)
   const usage = useQuery({ queryKey: orgKeys.usage(id, from, to), queryFn: ({ signal }) => orgService.usage(id, { from, to }, signal), enabled: me.features.usage_reports })
-  if (!me.features.usage_reports) return <Card title="Usage"><p className="text-sm text-ink-2">Usage reports are not part of this organisation’s plan.</p></Card>
+  if (!me.features.usage_reports) return <Card title="Usage"><Upsell what="Usage reports" /></Card>
   return (
     <Card title="Usage">
       <div className="flex gap-2"><TextField label="From" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /><TextField label="To" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>

@@ -128,6 +128,8 @@ export async function request<T = unknown>(path: string, opts: RequestOptions = 
   const body = await readBody(res)
   if (!res.ok) {
     const err = parseErrorBody(res.status, body)
+    const ra = Number(res.headers.get('Retry-After'))
+    if (Number.isFinite(ra) && ra > 0) err.retryAfterSeconds = ra
     if (res.status === 401 && opts.auth !== false && !opts.sessionSurvives401) useAuthStore.getState().clear({ expired: true })
     throw err
   }
@@ -148,6 +150,24 @@ export async function requestBlob(path: string, opts: RequestOptions = {}): Prom
   }
   if (!res.ok) throw parseErrorBody(res.status, await readBody(res))
   return res.blob()
+}
+
+/** Like requestBlob, but also returns the filename from Content-Disposition (null when the server sent none). */
+export async function requestFile(path: string, opts: RequestOptions = {}): Promise<{ blob: Blob; filename: string | null }> {
+  const withAccept = { ...opts, headers: { Accept: '*/*', ...opts.headers } }
+  let res = await doFetch(path, withAccept, getAccessToken())
+  if (res.status === 401 && opts.auth !== false) {
+    const fresh = await refreshSession()
+    if (!fresh) {
+      useAuthStore.getState().clear({ expired: true })
+      throw new ApiError('auth', 'Your session has expired. Please sign in again.', 401)
+    }
+    res = await doFetch(path, withAccept, fresh)
+  }
+  if (!res.ok) throw parseErrorBody(res.status, await readBody(res))
+  const cd = res.headers.get('Content-Disposition') ?? ''
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd)
+  return { blob: await res.blob(), filename: m?.[1] ? decodeURIComponent(m[1]) : null }
 }
 
 type Opts = Omit<RequestOptions, 'method' | 'body'>

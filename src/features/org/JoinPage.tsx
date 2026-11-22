@@ -1,11 +1,12 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Logo, Skeleton } from '@/components/ui/primitives'
 import { formatIstDate } from '@/lib/format'
 import { uuid } from '@/lib/utils'
 import { orgService } from '@/services/org.service'
-import { DEAD_INVITE_CODES, orgErrorCode, orgErrorMessage } from './errors'
+import { DEAD_INVITE_CODES, FINAL_ACCEPT_CODES, orgErrorCode, orgErrorMessage } from './errors'
+import { clearPendingInvite, savePendingInvite } from './pendingInvite'
 import { orgKeys } from './hooks'
 
 /**
@@ -26,10 +27,12 @@ export function JoinPage({ signedIn, restoring }: { signedIn: boolean; restoring
     setError(null)
     try {
       await orgService.accept(token, attempt.current)
+      clearPendingInvite()
       await qc.invalidateQueries({ queryKey: orgKeys.all })
       navigate('/settings/organisation', { replace: true })
     } catch (e) {
       setError(e)
+      if ((FINAL_ACCEPT_CODES as readonly string[]).includes(orgErrorCode(e) ?? '')) clearPendingInvite()
       attempt.current = uuid()
       setJoining(false)
     }
@@ -38,6 +41,9 @@ export function JoinPage({ signedIn, restoring }: { signedIn: boolean; restoring
   const from = `/join/${encodeURIComponent(token)}`
   const dead = preview.isError && (DEAD_INVITE_CODES as readonly string[]).includes(orgErrorCode(preview.error) ?? 'INVITE_INVALID')
   const p = preview.data
+  // Signed out: remember the token so signing up (and verifying in another tab) comes back here. A dead link forgets it.
+  useEffect(() => { if (!signedIn && !restoring && token) savePendingInvite(token) }, [signedIn, restoring, token])
+  useEffect(() => { if (dead) clearPendingInvite() }, [dead])
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-5 px-5 py-10" data-testid="join-page">
