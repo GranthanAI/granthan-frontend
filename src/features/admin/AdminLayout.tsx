@@ -12,6 +12,7 @@ const NAV = [
   { to: 'settlements', label: 'Settlements' },
   { to: 'prices', label: 'Prices and FX' },
   { to: 'plans', label: 'Plan editor' },
+  { to: 'orgs', label: 'Organisations' },
 ] as const
 
 /** /admin: only for staff (support, billing_admin, admin); anyone else sees the ordinary 404 page. Support is read-only. */

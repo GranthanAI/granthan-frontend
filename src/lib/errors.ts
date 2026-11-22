@@ -22,6 +22,8 @@ export class ApiError extends Error {
   readonly detail?: unknown
   /** RFC 9457 `errors` (billing 422s): one "field: message" string per problem. */
   problemErrors?: string[]
+  /** The machine code of a problem+json body (organisation-service: SEATS_FULL, INVITE_EXPIRED, ...). */
+  code?: string
 
   constructor(
     kind: ApiErrorKind,
@@ -135,6 +137,8 @@ export function parseErrorBody(status: number, body: unknown): ApiError {
   if (!message) message = defaultMessage(kind)
   const detail = body && typeof body === 'object' ? (body as Record<string, unknown>).detail : undefined
   const out = new ApiError(kind, message, status, fields, detail && typeof detail === 'object' ? detail : undefined)
+  const rawCode = body && typeof body === 'object' ? (body as Record<string, unknown>).code : undefined
+  if (typeof rawCode === 'string') out.code = rawCode
   const problems = body && typeof body === 'object' ? (body as Record<string, unknown>).errors : undefined
   if (Array.isArray(problems)) out.problemErrors = problems.filter((x): x is string => typeof x === 'string')
   return out

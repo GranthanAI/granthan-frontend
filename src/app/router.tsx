@@ -25,6 +25,8 @@ const AdminSettlements = money('SettlementsPage')
 const AdminPrices = money('PricesPage')
 const AdminPlans = lazy(() => import('@/features/admin/PlanEditorPage').then((m) => ({ default: m.PlanEditorPage })))
 const AdminSimulator = lazy(() => import('@/features/admin/SimulatorPage').then((m) => ({ default: m.SimulatorPage })))
+const AdminOrgs = lazy(() => import('@/features/org/StaffOrgPages').then((m) => ({ default: m.StaffOrgsPage })))
+const JoinPage = lazy(() => import('@/features/org/JoinPage').then((m) => ({ default: m.JoinPage })))
 const PricingPage = lazy(() => import('@/pages/PricingPage').then((m) => ({ default: m.PricingPage })))
 const SettingsLayout = settingsPage('SettingsLayout')
 const ProfileSettings = settingsPage('ProfileSettings')
@@ -36,6 +38,7 @@ const MemorySettingsPage = settingsPage('MemorySettingsPage')
 const DocumentsSettings = settingsPage('DocumentsSettings')
 const CustomModesSettings = settingsPage('CustomModesSettings')
 const BillingSettings = settingsPage('BillingSettings')
+const OrganisationSettings = settingsPage('OrganisationSettings')
 
 /** Restores the session once on first load from the HttpOnly refresh cookie. */
 let restoreStarted = false
@@ -65,8 +68,15 @@ export function PublicOnly() {
   return <Outlet />
 }
 
+function JoinRoute() {
+  const status = useRestoreSession()
+  return <Suspense fallback={<FullScreenLoader />}><JoinPage signedIn={status === 'authenticated'} restoring={status === 'loading'} /></Suspense>
+}
+
 export const routes = [
   // Public: reachable signed in and signed out (not under PublicOnly, which would bounce signed-in users).
+  // Public: the invitation preview needs no session; Join itself does.
+  { path: '/join/:token', element: <JoinRoute /> },
   { path: '/pricing', element: <Suspense fallback={<FullScreenLoader />}><PricingPage /></Suspense> },
   {
     element: <PublicOnly />,
@@ -92,6 +102,7 @@ export const routes = [
           { path: 'reconciliation', element: <Suspense fallback={null}><AdminReconciliation /></Suspense> },
           { path: 'settlements', element: <Suspense fallback={null}><AdminSettlements /></Suspense> },
           { path: 'plans', element: <Suspense fallback={null}><AdminPlans /></Suspense> },
+          { path: 'orgs', element: <Suspense fallback={null}><AdminOrgs /></Suspense> },
           { path: 'simulator', element: <Suspense fallback={null}><AdminSimulator /></Suspense> },
           { path: 'prices', element: <Suspense fallback={null}><AdminPrices /></Suspense> },
         ],
@@ -121,6 +132,7 @@ export const routes = [
               { path: 'memory', element: <Suspense fallback={null}><MemorySettingsPage /></Suspense> },
               { path: 'documents', element: <Suspense fallback={null}><DocumentsSettings /></Suspense> },
               { path: 'billing', element: <Suspense fallback={null}><BillingSettings /></Suspense> },
+              { path: 'organisation', element: <Suspense fallback={null}><OrganisationSettings /></Suspense> },
               { path: 'security', element: <Suspense fallback={null}><SecuritySettings /></Suspense> },
               { path: 'appearance', element: <Suspense fallback={null}><AppearanceSettings /></Suspense> },
               { path: 'text-style', element: <Suspense fallback={null}><TextStyleSettingsPage /></Suspense> },
