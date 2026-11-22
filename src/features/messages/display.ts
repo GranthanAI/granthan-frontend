@@ -23,6 +23,12 @@ export interface DisplayMessage {
   /** Catalog id of the model that answered (assistant, persisted), and billing's notice (e.g. limit.best_switched). */
   model?: string | null
   noticeKey?: string | null
+  /** Assistant: the answer used provider reasoning ("Thought longer"), and the turn in flight asked for it. */
+  think?: boolean
+  thinkingLonger?: boolean
+  /** Assistant (persisted): 2-3 follow-up questions, and the caller's own thumbs. */
+  suggestions?: string[]
+  feedback?: { rating: 'up' | 'down'; reason?: string | null } | null
   /** True for rows that exist only in the local overlay (not yet persisted history). */
   local: boolean
 }
@@ -39,6 +45,7 @@ export function buildDisplay(
   server: ApiMessage[],
   run: ConversationRun | undefined,
   citations: Record<string, Citation[]>,
+  notices: Record<string, string> = {},
 ): DisplayMessage[] {
   const live = run?.assistant ?? null
   const pendingUser = run?.pendingUser ?? null
@@ -80,7 +87,11 @@ export function buildDisplay(
       fileIds: m.file_ids ?? [],
       createdAt: m.created_at,
       model: m.model ?? m.billing?.granted_model ?? null,
-      noticeKey: m.billing?.notice_key ?? null,
+      noticeKey: m.billing?.notice_key ?? notices[m.message_id] ?? null,
+      think: sender === 'assistant' ? !!m.think : undefined,
+      thinkingLonger: !!(isLive && live.think),
+      suggestions: sender === 'assistant' ? (m.suggestions ?? []) : undefined,
+      feedback: sender === 'assistant' ? (m.feedback ?? null) : undefined,
       local: false,
     })
   }
@@ -123,6 +134,7 @@ export function buildDisplay(
       createdAt: null,
       model: null,
       noticeKey: null,
+      thinkingLonger: !!live.think,
       local: true,
     })
   }

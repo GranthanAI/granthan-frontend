@@ -4,16 +4,16 @@ const RESETS = '2026-11-16T00:00:00+05:30'
 export const FREE_LIMITS: PlanLimits = {
   messages_per_day: 25, best_per_day: 0, branches_per_tree: 20, messages_per_conversation: 50, memory_facts: 50,
   context_tokens: 8000, documents_per_tree: 3, file_size_mb: 10, youtube_per_month: 3, storage_mb: 100,
-  custom_modes: 3, mode_instruction_chars: 1000,
+  custom_modes: 3, mode_instruction_chars: 1000, think_longer_per_day: 0,
 }
 export const PRO_LIMITS: PlanLimits = {
   ...FREE_LIMITS, messages_per_day: 60, branches_per_tree: 100, messages_per_conversation: 200, memory_facts: 200,
   context_tokens: 32000, documents_per_tree: 10, file_size_mb: 50, youtube_per_month: 30, storage_mb: 2048,
-  custom_modes: 10, mode_instruction_chars: 3000, best_per_day: 5,
+  custom_modes: 10, mode_instruction_chars: 3000, best_per_day: 5, think_longer_per_day: 10,
 }
 export const MAX_LIMITS: PlanLimits = {
   ...PRO_LIMITS, messages_per_day: 80, best_per_day: 15, memory_facts: -1, context_tokens: 128000,
-  file_size_mb: 100, youtube_per_month: 100, storage_mb: 10240, custom_modes: -1,
+  file_size_mb: 100, youtube_per_month: 100, storage_mb: 10240, custom_modes: -1, think_longer_per_day: 30,
 }
 
 const base: BillingMe = {

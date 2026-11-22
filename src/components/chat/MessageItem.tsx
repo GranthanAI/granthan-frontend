@@ -16,6 +16,10 @@ import { hasVisualFence } from '@/features/visualization/blocks'
 import { ArtifactSourceProvider } from '@/features/artifacts/source'
 import { EditableResponseProvider } from '@/features/source-edits/context'
 import { ResponseEditActions, ResponseEditCard } from '@/features/source-edits/ResponseEdit'
+import { THINK_COPY } from '@/content/quickwins'
+import { EditButton, MessageEditor, VersionsChip } from '@/features/messages/EditUserMessage'
+import { ThumbsBar } from '@/features/messages/ThumbsBar'
+import { SpeakButton } from '@/features/voice/VoiceControls'
 
 const Markdown = lazy(() => import('./Markdown'))
 const ResponseBlocks = lazy(() => import('@/features/visualization/ResponseBlocks').then((m) => ({ default: m.ResponseBlocks })))
@@ -31,6 +35,8 @@ interface Props {
   onContinue?: () => void
   onRetrySend: () => void
   onDismissSend: () => void
+  /** The user's own sent messages may be edited into a new branch (false in temporary chats, while a turn runs and in read-only views). */
+  canEdit?: boolean
 }
 
 export const MessageItem = memo(function MessageItem({
@@ -42,8 +48,10 @@ export const MessageItem = memo(function MessageItem({
   onContinue,
   onRetrySend,
   onDismissSend,
+  canEdit = false,
 }: Props) {
-  if (m.sender === 'user') return <UserMessage m={m} onRetrySend={onRetrySend} onDismissSend={onDismissSend} />
+  if (m.sender === 'user')
+    return <UserMessage m={m} conversationId={conversationId} canEdit={canEdit} onRetrySend={onRetrySend} onDismissSend={onDismissSend} />
   const showContinue = isLastAssistant && canRegenerate && !!onContinue && m.status !== 'failed' && isTruncated(m.content)
   return (
     <AssistantMessage
@@ -58,16 +66,35 @@ export const MessageItem = memo(function MessageItem({
 
 function UserMessage({
   m,
+  conversationId,
+  canEdit,
   onRetrySend,
   onDismissSend,
 }: {
   m: DisplayMessage
+  conversationId?: string
+  canEdit: boolean
   onRetrySend: () => void
   onDismissSend: () => void
 }) {
   const { quote, body } = parseQuoted(m.content)
+  const [editing, setEditing] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const editable = canEdit && !!conversationId && !!m.id && !m.local && m.status === 'sent'
+  if (editing && editable) {
+    return (
+      <div className="animate-in flex flex-col items-end" data-message-id={m.id ?? undefined}>
+        <MessageEditor conversationId={conversationId!} messageId={m.id!} initial={m.content} onClose={() => setEditing(false)} />
+      </div>
+    )
+  }
   return (
-    <div className="animate-in flex flex-col items-end gap-1.5" data-message-id={m.id ?? undefined}>
+    <div
+      className="animate-in group flex flex-col items-end gap-1.5"
+      data-message-id={m.id ?? undefined}
+      onMouseEnter={() => setHovered(true)}
+      onFocus={() => setHovered(true)}
+    >
       <div
         className={cn(
           'font-input max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-surface-2 px-4 py-2.5 text-[0.9375rem] leading-relaxed',
@@ -81,6 +108,12 @@ function UserMessage({
         )}
         {body}
       </div>
+      {editable && (
+        <div className="flex items-center gap-1 text-ink-3 md:opacity-0 md:transition-opacity md:group-focus-within:opacity-100 md:group-hover:opacity-100 [@media(hover:none)]:opacity-100">
+          <VersionsChip conversationId={conversationId!} messageId={m.id!} wanted={hovered} />
+          <EditButton onClick={() => setEditing(true)} />
+        </div>
+      )}
       {m.fileIds.length > 0 && (
         <span className="inline-flex items-center gap-1 text-xs text-ink-3">
           <Paperclip className="size-3" aria-hidden /> {m.fileIds.length} attached file
@@ -147,7 +180,7 @@ function AssistantMessage({
               />
             ))}
           </span>
-          {m.status === 'pending' ? 'Generating a response…' : 'Thinking…'}
+          {m.status === 'pending' ? 'Generating a response…' : m.thinkingLonger ? THINK_COPY.pending : 'Thinking…'}
         </div>
       ) : failed ? (
         <div role="alert" className="flex items-start gap-2 rounded-xl bg-danger-soft px-3.5 py-3 text-sm text-danger">
@@ -183,7 +216,7 @@ function AssistantMessage({
 
       {!streaming && !waiting && !failed && m.content && <ResponseEditCard content={m.content} />}
 
-      {!streaming && !waiting && !failed && m.model && <AnsweredBy model={m.model} noticeKey={m.noticeKey} conversationId={showRegenerate ? conversationId : undefined} />}
+      {!streaming && !waiting && !failed && m.model && <AnsweredBy model={m.model} noticeKey={m.noticeKey} think={m.think} conversationId={showRegenerate ? conversationId : undefined} />}
 
       {m.citations.length > 0 && !streaming && <Sources citations={m.citations} />}
 
@@ -204,6 +237,10 @@ function AssistantMessage({
             </Button>
           )}
           {!failed && <ResponseEditActions content={m.content} />}
+          {!failed && m.status === 'sent' && m.id && <SpeakButton messageKey={m.id} content={m.content} />}
+          {!failed && m.status === 'sent' && !m.local && m.id && conversationId && (
+            <ThumbsBar conversationId={conversationId} messageId={m.id} current={m.feedback} />
+          )}
           {showRegenerate && m.id && (
             <Button variant="ghost" size="sm" onClick={() => onRegenerate(m.id!)}>
               <RefreshCw className="size-3.5" /> {failed ? 'Try again' : 'Regenerate'}
@@ -217,7 +254,7 @@ function AssistantMessage({
 }
 
 /** "Answered by <model>" plus the downgrade notice when an Advanced request was served by a Smart model. */
-function AnsweredBy({ model, noticeKey, conversationId }: { model: string; noticeKey?: string | null; conversationId?: string }) {
+function AnsweredBy({ model, noticeKey, think, conversationId }: { model: string; noticeKey?: string | null; think?: boolean; conversationId?: string }) {
   const requested = useLastRequestedModel((s) => (conversationId ? s.byConversation[conversationId] : undefined))
   const models = useMyModels().data
   const me = useBillingMe().data
@@ -228,7 +265,11 @@ function AnsweredBy({ model, noticeKey, conversationId }: { model: string; notic
   const switched = noticeKey === 'limit.best_switched' ? bestSwitchedText({ me, models, catalog, answeredBy: model }) : null
   return (
     <div className="mt-2 space-y-1 text-xs text-ink-3">
-      <p>Answered by {label}</p>
+      <p>
+        Answered by {label}
+        {think && <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-ink-2">{THINK_COPY.thought}</span>}
+      </p>
+      {noticeKey === 'think.not_applied' && <p role="note">{THINK_COPY.notApplied}</p>}
       {busy && <p role="note">{busy}</p>}
       {noticeKey === 'limit.best_switched' && <p role="note" className="text-ink-2">{switched ?? "Today's Advanced answers are used, so this one comes from a Smart model."}</p>}
     </div>

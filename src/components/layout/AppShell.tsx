@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Outlet, useLocation, useParams } from 'react-router-dom'
-import { Download, GitBranch, Menu as MenuIcon, Network, PanelLeftOpen, PanelRight } from 'lucide-react'
+import { useStopSpeechOnRoute } from '@/features/voice/VoiceControls'
+import { Download, GitBranch, Menu as MenuIcon, Network, PanelLeftOpen, PanelRight, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/primitives'
 import { Toaster } from '@/components/ui/overlays'
 import { ConversationDialogs, useDialogs } from '@/features/conversations/dialogs'
@@ -15,6 +16,7 @@ import { Sidebar } from './Sidebar'
 import { BillingBanners } from '@/components/billing/BillingBanners'
 
 export function AppShell() {
+  useStopSpeechOnRoute()
   const { id } = useParams()
   const location = useLocation()
   const conv = useConversation(id)
@@ -96,7 +98,12 @@ export function AppShell() {
                 <Download className="size-4" /> <span className="max-sm:hidden">Export</span>
               </Button>
             )}
-            {conversation && (
+            {conversation && !conversation.temporary && (
+              <Button variant="ghost" size="sm" onClick={() => openDialog({ kind: 'share', conversation })} title="Share a read-only snapshot">
+                <Share2 className="size-4" /> <span className="max-sm:hidden">Share</span>
+              </Button>
+            )}
+            {conversation && !conversation.temporary && (
               <Button variant="ghost" size="sm" onClick={() => openDialog({ kind: 'branch', conversation })} title="Start a linked conversation">
                 <GitBranch className="size-4" /> <span className="max-sm:hidden">Branch</span>
               </Button>

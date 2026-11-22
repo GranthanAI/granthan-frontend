@@ -36,6 +36,11 @@ export interface Conversation {
   updated_at: string
   status: string
   parent_conversation_id: string | null
+  /** Temporary chat: not listed, not remembered, deleted at `expires_at`. */
+  temporary?: boolean
+  expires_at?: string | null
+  /** Set when this conversation was created by editing a message of another conversation. */
+  edited_from_message_id?: string | null
 }
 
 export interface Page<T> {
@@ -63,6 +68,12 @@ export interface ApiMessage {
   /** Assistant messages: the catalog model id that answered, and its group (fast/smart/best/ultra). */
   model?: string | null
   model_group?: string | null
+  /** Assistant messages: 2-3 follow-up questions (empty until llm-service has published them). */
+  suggestions?: string[]
+  /** Assistant messages: the caller's own thumbs rating. */
+  feedback?: { rating: FeedbackRating; reason?: string | null } | null
+  /** Assistant messages: the answer used provider reasoning ("Thought longer"). */
+  think?: boolean
   /** What billing granted for this turn; `notice_key` is e.g. limit.best_switched when a Best request was downgraded. */
   billing?: { granted_group?: string | null; granted_model?: string | null; downgraded?: boolean; remaining_today?: number | null; funded_by?: string | null; enforcement?: string | null; notice_key?: string | null } | null
 }
@@ -76,6 +87,81 @@ export interface SendMessageBody {
   /** Ask the model to include a Mermaid/Manim diagram when it would help. Omitted when off. */
   include_diagrams?: boolean
   file_ids?: string[]
+  /** "Think longer": sent only when on. */
+  think?: boolean
+}
+
+export type FeedbackRating = 'up' | 'down'
+export const FEEDBACK_REASONS = ['inaccurate', 'not_helpful', 'wrong_level', 'too_long', 'too_short', 'formatting', 'unsafe', 'other'] as const
+export type FeedbackReason = (typeof FEEDBACK_REASONS)[number]
+export interface FeedbackBody {
+  rating: FeedbackRating
+  reason?: FeedbackReason
+  comment?: string
+}
+export interface FeedbackAdminItem {
+  created_at: string
+  rating: FeedbackRating
+  reason: FeedbackReason | null
+  comment: string | null
+  model: string | null
+  model_group: string | null
+  conversation_id: string
+  message_id: string
+  answer: string | null
+  question: string | null
+}
+
+export interface EditedVersion {
+  conversation_id: string
+  title: string
+  created_at: string
+}
+export interface EditResponse {
+  conversation: Conversation
+  message: ApiMessage
+}
+
+export type ShareScope = 'conversation' | 'hierarchy'
+export interface ShareCreated {
+  share_id: string
+  /** Shown ONCE: only its hash is stored. */
+  url_token: string
+  scope: ShareScope
+  title: string
+  message_count: number
+  created_at: string
+}
+export interface ShareItem {
+  share_id: string
+  conversation_id: string
+  scope: ShareScope
+  title: string
+  message_count: number
+  created_at: string
+  refreshed_at: string
+  view_count: number
+}
+export interface SharedMessage {
+  sender: 'user' | 'assistant'
+  content: string
+  created_at: string
+  citations: Array<{ title: string; page?: number; start_seconds?: number; end_seconds?: number }>
+  model: string | null
+}
+export interface SharedConversation {
+  id: string
+  parent: string | null
+  title: string
+  inherited: boolean
+  messages: SharedMessage[]
+}
+export interface SharedSnapshot {
+  schema_version: number
+  title: string
+  scope: ShareScope
+  created_at: string
+  conversations: SharedConversation[]
 }
 
 /** Retrieval source attached to the final SSE event of a grounded answer (not persisted). */
@@ -102,6 +188,9 @@ export interface StreamEvent {
   status?: 'completed' | 'failed'
   citations?: Citation[]
   full_content?: string
+  /** Final event: the answer call used provider reasoning; `notice_key: "think.not_applied"` = asked for, not applied. */
+  think?: boolean
+  notice_key?: string
   /** Replay-log cursor (Redis Stream id). Absent if the server's event log was unavailable. */
   event_id?: string
 }
@@ -265,6 +354,8 @@ export interface Preferences {
   document_context: DocumentContextPreference
   /** 'auto' or a catalog model id (billing). */
   default_model?: string
+  /** Show 2-3 follow-up questions under the latest answer (default on). */
+  suggest_followups?: boolean
   /** False when the saved default is a custom mode that was archived (Auto is used until changed). */
   default_mode_available?: boolean
   /** Optimistic-concurrency version: send it back on PATCH. 0 = never saved. */
@@ -283,7 +374,7 @@ export interface PreferenceOptions {
 }
 
 export type PreferencesPatch = Partial<
-  Pick<Preferences, 'default_mode' | 'default_tools' | 'answer_length' | 'tone' | 'language' | 'personal_instructions' | 'citations' | 'document_context' | 'default_model'>
+  Pick<Preferences, 'default_mode' | 'default_tools' | 'answer_length' | 'tone' | 'language' | 'personal_instructions' | 'citations' | 'document_context' | 'default_model' | 'suggest_followups'>
 > & { version?: number }
 
 export interface MemorySettings {

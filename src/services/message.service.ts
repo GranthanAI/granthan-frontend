@@ -18,8 +18,11 @@ export const messageService = {
       signal,
     }),
 
-  regenerate: (cid: string, assistantMessageId: string, model?: string) =>
-    api.post<ApiMessage>(`${base(cid)}/${encodeURIComponent(assistantMessageId)}/regenerate`, model ? { model } : undefined),
+  regenerate: (cid: string, assistantMessageId: string, model?: string, think?: boolean) =>
+    api.post<ApiMessage>(
+      `${base(cid)}/${encodeURIComponent(assistantMessageId)}/regenerate`,
+      model || think ? { ...(model ? { model } : {}), ...(think ? { think: true } : {}) } : undefined,
+    ),
 
   remove: (cid: string, messageId: string) =>
     api.delete<void>(`${base(cid)}/${encodeURIComponent(messageId)}`),

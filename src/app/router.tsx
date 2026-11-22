@@ -29,6 +29,9 @@ const AdminSimulator = lazy(() => import('@/features/admin/SimulatorPage').then(
 const AdminOrgs = lazy(() => import('@/features/org/StaffOrgPages').then((m) => ({ default: m.StaffOrgsPage })))
 const JoinPage = lazy(() => import('@/features/org/JoinPage').then((m) => ({ default: m.JoinPage })))
 const PricingPage = lazy(() => import('@/pages/PricingPage').then((m) => ({ default: m.PricingPage })))
+const PublicSharePage = lazy(() => import('@/features/share/PublicSharePage').then((m) => ({ default: m.PublicSharePage })))
+const AdminFeedback = lazy(() => import('@/features/admin/FeedbackPage').then((m) => ({ default: m.FeedbackPage })))
+const SharedLinksSettings = settingsPage('SharedLinksSettings')
 const SettingsLayout = settingsPage('SettingsLayout')
 const ProfileSettings = settingsPage('ProfileSettings')
 const SecuritySettings = settingsPage('SecuritySettings')
@@ -78,6 +81,8 @@ export const routes = [
   // Public: reachable signed in and signed out (not under PublicOnly, which would bounce signed-in users).
   // Public: the invitation preview needs no session; Join itself does.
   { path: '/join/:token', element: <JoinRoute /> },
+  // A shared snapshot: public, read-only, no auth guard and no app shell.
+  { path: '/s/:token', element: <Suspense fallback={<FullScreenLoader />}><PublicSharePage /></Suspense> },
   { path: '/pricing', element: <Suspense fallback={<FullScreenLoader />}><PricingPage /></Suspense> },
   {
     element: <PublicOnly />,
@@ -104,6 +109,7 @@ export const routes = [
           { path: 'settlements', element: <Suspense fallback={null}><AdminSettlements /></Suspense> },
           { path: 'plans', element: <Suspense fallback={null}><AdminPlans /></Suspense> },
           { path: 'orgs', element: <Suspense fallback={null}><AdminOrgs /></Suspense> },
+          { path: 'feedback', element: <Suspense fallback={null}><AdminFeedback /></Suspense> },
           { path: 'simulator', element: <Suspense fallback={null}><AdminSimulator /></Suspense> },
           { path: 'prices', element: <Suspense fallback={null}><AdminPrices /></Suspense> },
         ],
@@ -132,6 +138,7 @@ export const routes = [
               { path: 'custom-modes', element: <Suspense fallback={null}><CustomModesSettings /></Suspense> },
               { path: 'memory', element: <Suspense fallback={null}><MemorySettingsPage /></Suspense> },
               { path: 'documents', element: <Suspense fallback={null}><DocumentsSettings /></Suspense> },
+              { path: 'shared-links', element: <Suspense fallback={null}><SharedLinksSettings /></Suspense> },
               { path: 'billing', element: <Suspense fallback={null}><BillingSettings /></Suspense> },
               { path: 'organisation', element: <Suspense fallback={null}><OrganisationSettings /></Suspense> },
               { path: 'security', element: <Suspense fallback={null}><SecuritySettings /></Suspense> },

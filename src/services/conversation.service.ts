@@ -12,10 +12,11 @@ export const conversationService = {
     api.get<Conversation>(`/conversations/${encodeURIComponent(id)}`, { signal }),
 
   /** `parent_conversation_id` creates a lineage link (branch); history is NOT copied. */
-  create: (body: { title: string; parent_conversation_id?: string | null }) =>
+  create: (body: { title: string; parent_conversation_id?: string | null; temporary?: boolean }) =>
     api.post<Conversation>('/conversations', {
       title: body.title,
       ...(body.parent_conversation_id ? { parent_conversation_id: body.parent_conversation_id } : {}),
+      ...(body.temporary ? { temporary: true } : {}),
     }),
 
   rename: (id: string, title: string) =>

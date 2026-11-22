@@ -9,6 +9,7 @@ import { Button, TextField } from '@/components/ui/primitives'
 import { truncate } from '@/lib/utils'
 import { useCreateConversation, useDeleteConversation, useRenameConversation } from './hooks'
 import { ExportDialog } from '@/features/exports/ExportDialog'
+import { ShareDialog } from '@/features/share/ShareDialog'
 import type { Conversation } from '@/types/api'
 
 type Dialogs =
@@ -16,6 +17,7 @@ type Dialogs =
   | { kind: 'delete'; conversation: Conversation; descendants: number }
   | { kind: 'branch'; conversation: Conversation }
   | { kind: 'export'; conversation: Conversation }
+  | { kind: 'share'; conversation: Conversation }
   | null
 
 export const useDialogs = create<{ dialog: Dialogs; open: (d: NonNullable<Dialogs>) => void; close: () => void }>(
@@ -113,6 +115,7 @@ export function ConversationDialogs() {
     )
 
   if (dialog.kind === 'export') return <ExportDialog conversation={c} onClose={close} />
+  if (dialog.kind === 'share') return <ShareDialog conversation={c} onClose={close} />
 
   if (dialog.kind === 'branch')
     return (

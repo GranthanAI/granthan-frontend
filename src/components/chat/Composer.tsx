@@ -12,6 +12,8 @@ import { useToolSelection } from '@/features/tools/useTools'
 import { usePreferences } from '@/features/preferences/usePreferences'
 import { ToolPicker } from './ToolPicker'
 import { ModelPicker } from './ModelPicker'
+import { ThinkToggle } from '@/features/think/ThinkToggle'
+import { MicButton } from '@/features/voice/VoiceControls'
 import { UsageMeter } from './UsageMeter'
 import { ComposerNotices } from '@/components/billing/BillingNotice'
 import { useDraftStore } from '@/stores/draft.store'
@@ -59,6 +61,8 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
   const fileInput = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  // bumps on every send: dictation stops with it
+  const [sentCount, setSentCount] = useState(0)
 
   // Auto-grow up to ~40% of the viewport.
   useLayoutEffect(() => {
@@ -90,6 +94,7 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
       // The selected excerpt (if any) is sent with the prompt as a quote block.
       const ok = await onSend(formatQuoted(quote, text), fileIds, tools.explicitTools, tools.explicitMode)
       if (ok) {
+        setSentCount((n) => n + 1)
         clearDraft(draftKey)
         clearQuote(draftKey)
         att.clear()
@@ -250,7 +255,9 @@ export function Composer({ conversationId, draftKey, busy, placeholder, autoFocu
             </Button>
             <ToolPicker selection={tools} disabled={busy} />
             <ModelPicker selectionKey={draftKey} disabled={busy} />
+            <ThinkToggle selectionKey={draftKey} disabled={busy} />
             <DiagramToggle />
+            <MicButton draftKey={draftKey} textareaRef={ref} busy={busy} stopSignal={sentCount} />
             {formatQuoted(quote, draft).length > MAX_MESSAGE_CHARS * 0.8 && (
               <span className={cn('text-xs', tooLong ? 'text-danger' : 'text-ink-3')} role={tooLong ? 'alert' : undefined}>
                 {formatQuoted(quote, draft).length}/{MAX_MESSAGE_CHARS}

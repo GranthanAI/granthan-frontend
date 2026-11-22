@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Code2, FileSearch, GitBranch, Lightbulb } from 'lucide-react'
+import { Code2, EyeOff, FileSearch, GitBranch, Lightbulb } from 'lucide-react'
 import { Composer } from '@/components/chat/Composer'
 import { SelectionActions } from '@/components/chat/SelectionActions'
 import { useSelectionBranch } from '@/features/conversations/useSelectionBranch'
@@ -20,12 +20,15 @@ import { buildDisplay } from '@/features/messages/display'
 import { useMessages } from '@/features/messages/hooks'
 import { documentIdsFromHistory } from '@/features/uploads/useDocumentContext'
 import { ApiError, errorMessage } from '@/lib/errors'
-import { truncate } from '@/lib/utils'
+import { cn, truncate } from '@/lib/utils'
+import { EDIT_COPY, TEMP_COPY } from '@/content/quickwins'
+import { LeaveGuard, TemporaryBanner } from '@/features/temporary/temporary'
 import { EMPTY_RUN, isBusy, useChatStore } from '@/stores/chat.store'
 import { NEW_CHAT_DRAFT } from '@/stores/draft.store'
 import { adoptNewChatMode, useModeSelectionStore } from '@/features/tools/useTools'
 import { adoptNewChatModel } from '@/features/billing/model-selection'
 import { useBranchContext } from '@/features/conversations/useBranchContext'
+import { usePreferences } from '@/features/preferences/usePreferences'
 
 const EXAMPLES = [
   { icon: <Lightbulb className="size-4" />, text: 'Explain how Kafka partitions relate to consumer groups' },
@@ -38,11 +41,12 @@ export function NewChatPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const create = useCreateConversation()
+  const [temporary, setTemporary] = useState(false)
 
   const onSend = async (text: string, fileIds: string[], toolIds: string[] | undefined, mode: string | undefined) => {
     if (create.isPending) return false
     try {
-      const c = await create.mutateAsync({ title: truncate(text, 60) })
+      const c = await create.mutateAsync({ title: truncate(text, 60), temporary })
       adoptNewChatMode(NEW_CHAT_DRAFT, c.conversation_id)
       adoptNewChatModel(NEW_CHAT_DRAFT, c.conversation_id)
       sendMessage(qc, c.conversation_id, text, fileIds, toolIds, { mode })
@@ -77,6 +81,17 @@ export function NewChatPage() {
           ))}
         </ul>
       </div>
+      <div className="mx-auto flex w-full max-w-3xl justify-end px-4 pb-1">
+        <button
+          type="button"
+          onClick={() => setTemporary((t) => !t)}
+          aria-pressed={temporary}
+          title={TEMP_COPY.tooltip}
+          className={cn('inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-sm', temporary ? 'bg-accent-soft font-medium' : 'text-ink-2 hover:bg-surface-2')}
+        >
+          <EyeOff className="size-4" aria-hidden /> {TEMP_COPY.toggle}
+        </button>
+      </div>
       <Composer
         conversationId={null}
         draftKey={NEW_CHAT_DRAFT}
@@ -101,6 +116,8 @@ export function ConversationView({ id, embedded = false }: { id: string; embedde
   const msgs = useMessages(id)
   const run = useChatStore((s) => s.runs[id] ?? EMPTY_RUN)
   const citations = useChatStore((s) => s.citations)
+  const notices = useChatStore((s) => s.notices)
+  const prefs = usePreferences().data
   const busy = isBusy(run)
   const selection = useSelectionBranch(id)
   const inherited = useBranchContext(id)
@@ -110,7 +127,7 @@ export function ConversationView({ id, embedded = false }: { id: string; embedde
     [msgs.messages, inherited.documents],
   )
 
-  const display = useMemo(() => buildDisplay(msgs.messages, run, citations), [msgs.messages, run, citations])
+  const display = useMemo(() => buildDisplay(msgs.messages, run, citations, notices), [msgs.messages, run, citations, notices])
 
   // Attach to an assistant reply that is still generating on the server (e.g. after reload).
   const attempted = useRef(new Set<string>())
@@ -157,8 +174,26 @@ export function ConversationView({ id, embedded = false }: { id: string; embedde
           ? 'Response failed'
           : ''
 
+  const temporaryChat = !!conv.data?.temporary
+  const editedFrom = conv.data?.edited_from_message_id ? conv.data : null
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {temporaryChat && !embedded && <TemporaryBanner expiresAt={conv.data?.expires_at} />}
+      {temporaryChat && !embedded && <LeaveGuard />}
+      {editedFrom && (
+        <div role="note" className="border-b border-line bg-surface px-4 py-2 text-xs text-ink-2">
+          {EDIT_COPY.editedBanner}
+          {editedFrom.parent_conversation_id && (
+            <>
+              {' · '}
+              <Link to={`/c/${editedFrom.parent_conversation_id}`} className="underline">
+                {EDIT_COPY.original}
+              </Link>
+            </>
+          )}
+        </div>
+      )}
       {msgs.isPending ? (
         <div className="mx-auto w-full max-w-3xl flex-1 space-y-6 px-4 py-8" aria-busy aria-label="Loading messages">
           <Skeleton className="ml-auto h-10 w-2/5" />
@@ -200,6 +235,14 @@ export function ConversationView({ id, embedded = false }: { id: string; embedde
           onRetrySend={() => retryPending(qc, id)}
           onDismissSend={() => dismissPending(id)}
           statusText={statusText}
+          canEdit={!busy && !conv.data?.temporary && !embedded}
+          onSuggestion={
+            prefs?.suggest_followups === false || embedded
+              ? undefined
+              : (q) => {
+                  if (!sendMessage(qc, id, q, [], undefined, { mode: useModeSelectionStore.getState().modeByKey[id] })) toast('Please wait for the current response to finish.', 'info')
+                }
+          }
         />
       )}
       {msgs.isError && display.length > 0 && (
@@ -207,7 +250,7 @@ export function ConversationView({ id, embedded = false }: { id: string; embedde
           <Alert tone="warn">Could not refresh messages. Showing what was loaded. {errorMessage(msgs.error)}</Alert>
         </div>
       )}
-      {!embedded && <SelectionActions onNewBranch={(t) => void selection.newBranch(t)} onThisBranch={selection.thisBranch} pending={selection.pending} />}
+      {!embedded && !temporaryChat && <SelectionActions onNewBranch={(t) => void selection.newBranch(t)} onThisBranch={selection.thisBranch} pending={selection.pending} />}
       <Composer
         conversationId={id}
         draftKey={id}

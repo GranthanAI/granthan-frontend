@@ -3,6 +3,7 @@ import { ArrowDown } from 'lucide-react'
 import { Button, Spinner } from '@/components/ui/primitives'
 import type { DisplayMessage } from '@/features/messages/display'
 import { MessageItem } from './MessageItem'
+import { Suggestions } from '@/features/messages/Suggestions'
 
 interface Props {
   messages: DisplayMessage[]
@@ -17,6 +18,10 @@ interface Props {
   onDismissSend: () => void
   /** Announced to assistive tech without reading every streamed token. */
   statusText: string
+  /** Own sent messages show the edit pencil. */
+  canEdit?: boolean
+  /** Clicking a suggestion sends it. Undefined = no suggestions (read-only views, suggestions off). */
+  onSuggestion?: (question: string) => void
 }
 
 const NEAR_BOTTOM_PX = 140
@@ -33,6 +38,8 @@ export function MessageList({
   onRetrySend,
   onDismissSend,
   statusText,
+  canEdit = false,
+  onSuggestion,
 }: Props) {
   const scroller = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
@@ -117,8 +124,12 @@ export function MessageList({
               onContinue={onContinue}
               onRetrySend={onRetrySend}
               onDismissSend={onDismissSend}
+              canEdit={canEdit}
             />
           ))}
+          {onSuggestion && canRegenerate && lastAssistantIdx >= 0 && messages[lastAssistantIdx]!.status === 'sent' && (
+            <Suggestions items={messages[lastAssistantIdx]!.suggestions ?? []} onPick={onSuggestion} />
+          )}
         </div>
       </div>
       <div className="sr-only" role="status" aria-live="polite">

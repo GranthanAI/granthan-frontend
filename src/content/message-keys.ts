@@ -38,6 +38,7 @@ export const PLAN_LIMIT_NAMES: ReadonlyArray<MessageKeySource> = [
   { key: 'documents_per_tree', source: 'conversation-service' },
   { key: 'custom_modes', source: 'conversation-service' },
   { key: 'mode_instruction_chars', source: 'conversation-service' },
+  { key: 'think_longer_per_day', source: 'conversation-service' },
   // file-service app/core/billing_messages.py (PLAN_LIMIT_COPY)
   { key: 'file_size_mb', source: 'file-service' },
   { key: 'storage_mb', source: 'file-service' },

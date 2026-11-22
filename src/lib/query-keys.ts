@@ -24,5 +24,9 @@ export const qk = {
   billingProfile: ['billing', 'profile'] as const,
   gstStates: ['billing', 'gst-states'] as const,
   billingInvoices: ['billing', 'invoices'] as const,
+  shares: ['shares'] as const,
+  sharePublic: (token: string) => ['share-public', token] as const,
+  edits: (cid: string, mid: string) => ['edits', cid, mid] as const,
+  feedbackAdmin: (filters: string) => ['feedback-admin', filters] as const,
   fileStatus: (id: string) => ['file-status', id] as const,
 }

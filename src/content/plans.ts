@@ -121,6 +121,7 @@ export const LIMIT_COPY: Record<string, LimitCopy> = {
   'limit.documents_per_tree': { message: 'This tree has all {limit} of its documents.', fix: 'Remove one' },
   'limit.custom_modes': { message: 'You have all {limit} custom modes your plan includes.', fix: 'Remove one' },
   'limit.mode_instruction_chars': { message: 'That instruction is longer than the {limit} characters your plan includes.', fix: 'Shorten it' },
+  'limit.think_longer_per_day': { message: "You've used today's Think longer answers. They reset at midnight." },
   'limit.file_size_mb': { message: 'This file is larger than the {size} each upload includes on your plan.', fix: 'Choose a smaller file' },
   'limit.storage_mb': { message: 'Your {size} of storage is full.', fix: 'Delete files you no longer need' },
   'limit.memory_facts': { message: 'Your {limit} memory facts are all in use.', fix: "Remove the ones you don't need" },

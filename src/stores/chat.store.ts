@@ -31,6 +31,8 @@ export interface LiveAssistant {
   error?: string
   /** Assistant message that this reply supersedes (regenerate). */
   replaces?: string
+  /** This turn asked to think longer ("Thinking longer…" while it waits). */
+  think?: boolean
 }
 
 export interface ConversationRun {
@@ -42,6 +44,9 @@ interface ChatState {
   runs: Record<string, ConversationRun>
   /** Retrieval sources, keyed by assistant message id. Not persisted by the backend. */
   citations: Record<string, Citation[]>
+  /** Notices that are not persisted, keyed by assistant message id (e.g. "think.not_applied"). */
+  notices: Record<string, string>
+  setNotice: (messageId: string, key: string) => void
   patch: (cid: string, fn: (r: ConversationRun) => ConversationRun) => void
   clearRun: (cid: string) => void
   setCitations: (messageId: string, c: Citation[]) => void
@@ -52,6 +57,8 @@ const empty: ConversationRun = { pendingUser: null, assistant: null }
 export const useChatStore = create<ChatState>((set) => ({
   runs: {},
   citations: {},
+  notices: {},
+  setNotice: (messageId, key) => set((s) => ({ notices: { ...s.notices, [messageId]: key } })),
   patch: (cid, fn) =>
     set((s) => ({ runs: { ...s.runs, [cid]: fn(s.runs[cid] ?? empty) } })),
   clearRun: (cid) =>

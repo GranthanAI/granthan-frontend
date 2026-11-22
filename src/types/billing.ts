@@ -17,6 +17,8 @@ export interface PlanLimits {
   storage_mb: number
   custom_modes: number
   mode_instruction_chars: number
+  /** Think-longer answers per IST day: 0 = not in the plan, -1 = unlimited. */
+  think_longer_per_day: number
 }
 export type LimitName = keyof PlanLimits
 
@@ -56,6 +58,7 @@ export interface CatalogModel {
   provider: string
   group: ModelGroup | string
   sort_order: number
+  think?: boolean
 }
 export interface ModelsCatalogResponse {
   models: CatalogModel[]
@@ -99,6 +102,8 @@ export interface MyModel {
   label: string
   provider: string
   allowed: boolean
+  /** The model has a reasoning control: "Think longer" can be turned on for it. */
+  think?: boolean
 }
 export interface MyModelGroup {
   group: ModelGroup | string

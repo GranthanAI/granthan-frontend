@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { qk } from '@/lib/query-keys'
-import { Brain, Building2, CreditCard, FileText, Wand2, KeyRound, Monitor, Moon, Palette, Sparkles, Sun, Type, UserRound } from 'lucide-react'
+import { Brain, Building2, Link2, CreditCard, FileText, Wand2, KeyRound, Monitor, Moon, Palette, Sparkles, Sun, Type, UserRound } from 'lucide-react'
 import { Alert, Button, TextField } from '@/components/ui/primitives'
 import { Dialog, toast } from '@/components/ui/overlays'
 import { toApiError } from '@/lib/errors'
@@ -23,8 +23,9 @@ import { CustomModesSettings } from '@/components/settings/CustomModesSettings'
 import { Toggle } from '@/components/settings/controls'
 import { BillingSettings } from '@/components/settings/BillingSettings'
 import { OrganisationSettings } from '@/features/org/OrgSettings'
+import { SharedLinksSettings } from '@/features/share/SharedLinksSettings'
 
-export { AiPreferencesSettings, MemorySettingsPage, DocumentsSettings, CustomModesSettings, BillingSettings, OrganisationSettings }
+export { AiPreferencesSettings, MemorySettingsPage, DocumentsSettings, CustomModesSettings, BillingSettings, OrganisationSettings, SharedLinksSettings }
 
 const profileSchema = z.object({
   full_name: z.string().trim().min(2, 'At least 2 characters').max(100),
@@ -41,6 +42,7 @@ export const SETTINGS_PAGES = [
   { path: 'custom-modes', label: 'Custom modes', icon: Wand2 },
   { path: 'memory', label: 'Memory', icon: Brain },
   { path: 'documents', label: 'Documents', icon: FileText },
+  { path: 'shared-links', label: 'Shared links', icon: Link2 },
   { path: 'billing', label: 'Billing', icon: CreditCard },
   { path: 'organisation', label: 'Organisation', icon: Building2 },
   { path: 'security', label: 'Security', icon: KeyRound },

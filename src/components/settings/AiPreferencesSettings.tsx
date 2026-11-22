@@ -10,11 +10,13 @@ import { defaultModelId } from '@/features/billing/model-selection'
 import { useAllModes } from '@/features/custom-modes/useCustomModes'
 import { ApiError, toApiError } from '@/lib/errors'
 import { cn } from '@/lib/utils'
+import { SUGGEST_COPY } from '@/content/quickwins'
+import { VoiceSettings } from '@/features/voice/VoiceSettings'
 import type { Preferences, PreferencesPatch } from '@/types/api'
 
 type Draft = Pick<
   Preferences,
-  'default_mode' | 'default_tools' | 'answer_length' | 'tone' | 'language' | 'personal_instructions' | 'citations' | 'document_context' | 'default_model'
+  'default_mode' | 'default_tools' | 'answer_length' | 'tone' | 'language' | 'personal_instructions' | 'citations' | 'document_context' | 'default_model' | 'suggest_followups'
 >
 
 /** The saved default shown as a model: 'auto' (the old setting) means the standard default, GPT-OSS. */
@@ -31,6 +33,7 @@ const pick = (p: Preferences): Draft => ({
   citations: p.citations,
   document_context: p.document_context,
   default_model: p.default_model ?? 'auto',
+  suggest_followups: p.suggest_followups ?? true,
 })
 
 const sameTools = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i])
@@ -77,7 +80,7 @@ export function AiPreferencesSettings() {
   const patch: PreferencesPatch = {}
   if (draft.default_mode !== original.default_mode) patch.default_mode = draft.default_mode
   if (!sameTools(draft.default_tools, original.default_tools)) patch.default_tools = draft.default_tools
-  for (const k of ['answer_length', 'tone', 'language', 'personal_instructions', 'citations', 'document_context', 'default_model'] as const) {
+  for (const k of ['answer_length', 'tone', 'language', 'personal_instructions', 'citations', 'document_context', 'default_model', 'suggest_followups'] as const) {
     if (draft[k] !== original[k]) (patch as Record<string, unknown>)[k] = draft[k]
   }
   const dirty = Object.keys(patch).length > 0
@@ -245,6 +248,16 @@ export function AiPreferencesSettings() {
           ]}
         />
 
+        <SegmentedControl
+          label={SUGGEST_COPY.setting}
+          value={draft.suggest_followups ? 'on' : 'off'}
+          onChange={(v) => set('suggest_followups', v === 'on')}
+          options={[
+            { value: 'on', label: 'On', description: SUGGEST_COPY.settingHelp },
+            { value: 'off', label: 'Off' },
+          ]}
+        />
+
         <div className="flex flex-wrap gap-2">
           <Button variant="primary" onClick={() => void save()} loading={update.isPending} disabled={!dirty || tooLong}>
             Save preferences
@@ -257,6 +270,8 @@ export function AiPreferencesSettings() {
           </Button>
         </div>
       </SettingsSection>
+
+      <VoiceSettings />
 
       <ConfirmDialog
         open={confirmReset}

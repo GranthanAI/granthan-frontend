@@ -3,6 +3,7 @@
 export const LIMIT_KEYS = [
   'messages_per_day', 'best_per_day', 'branches_per_tree', 'messages_per_conversation', 'memory_facts', 'context_tokens',
   'documents_per_tree', 'file_size_mb', 'youtube_per_month', 'storage_mb', 'custom_modes', 'mode_instruction_chars',
+  'think_longer_per_day',
 ] as const
 export type LimitKey = (typeof LIMIT_KEYS)[number]
 
@@ -19,6 +20,7 @@ export const LIMIT_LABELS: Record<LimitKey, string> = {
   storage_mb: 'Total storage (MB)',
   custom_modes: 'Custom modes',
   mode_instruction_chars: 'Instruction length (characters)',
+  think_longer_per_day: 'Think longer answers per day',
 }
 
 export const GROUPS = ['fast', 'smart', 'best', 'ultra'] as const
